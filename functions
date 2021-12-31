@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-[[ $__functions__ ]] && return
+__functions_=-${-//[!i]} && [[ $__functions_ == "$__functions__" ]] && return
 
 shopt -qo posix && return 126
 
-__functions=$BASH_SOURCE
+__functions_SOURCE=$BASH_SOURCE __functions_PID=$BASHPID
 
 _error_ () { echo 0; }
 _warn_  () { echo 1; }
@@ -136,14 +136,14 @@ function bool {
 
 	case $1 in
 	1 | \
-	true | TRUE | True | \
-	yes | YES | Yes | \
+	true | TRUE | True | t | T | \
+	yes | YES | Yes | y | Y | \
 	on | ON | On)
 	return 0
 	;;
 	0 | \
-	false | FALSE | False | \
-	no | NO | No | \
+	false | FALSE | False | f | F | \
+	no | NO | No | n | N | \
 	off | OFF | Off)
 	return 1
 	;;
@@ -159,8 +159,6 @@ function color {
 }
 
 function colorc {
-	local - && set +x
-
 	[[ $# -eq 1 ]] || return $(errorf)
 
 	local -A cc=(
@@ -229,8 +227,6 @@ function colorc {
 }
 
 function echoc {
-	local - && set +x
-
 	local nl
 	[[ $1 == -n ]] && nl=$1 && shift
 
@@ -294,8 +290,6 @@ function echoe {
 }
 
 function log {
-	local - && set +x
-
 	[[ $# -ge 1 ]] || return $(errorf)
 
 	local level=$1 test drop && shift
@@ -1413,7 +1407,7 @@ function require_command {
 }
 
 function run {
-	[[ $# -ge 1 ]] || return $(errorf)
+	[[ $# -gt 0 ]] || return $(errorf)
 
 	if [[ $# -eq 1 && $1 == *' '* && $SHELL ]]; then
 		set -- "$SHELL" -c "$1"
@@ -1463,6 +1457,7 @@ function kill_job {
 
 	if [[ ! $spec ]]; then
 		_trace && trace "Job process not found: $1"
+
 		return 0
 	fi
 
@@ -1583,22 +1578,6 @@ function coproc_read_field {
 	[[ ${#end} -eq 0 ]] || return $(errorf "Unexpected data after field value")
 }
 
-function -@ {
-	local _x_var__ _x_ifs IFS=$IFS
-
-	while IFS= read -r _x_var__; do
-		__=- @: _x_var__ "$_x_var__" "$@"
-
-		_x_ifs=$IFS IFS=$'\n'
-
-		echo "${_x_var__[*]}"
-
-		IFS=$_x_ifs
-
-		unset -v _x_var__
-	done
-}
-
 function @ {
 	local _x_var__
 
@@ -1629,6 +1608,34 @@ function @@ {
 	echo "${_x_var__[*]}"
 }
 
+function -@ {
+	local _x_var__ _x_ifs IFS=$IFS
+
+	while IFS= read -r _x_var__; do
+		__=- @: _x_var__ "$_x_var__" "$@"
+
+		_x_ifs=$IFS IFS=$'\n'
+
+		echo "${_x_var__[*]}"
+
+		IFS=$_x_ifs
+
+		unset -v _x_var__
+	done
+}
+
+function -@@ {
+	local _x_var__
+
+	readarray -t _x_var__
+
+	__=@ @: _x_var__ _x_var__ "$@"
+
+	local IFS=$'\n'
+
+	echo "${_x_var__[*]}"
+}
+
 function @@: {
 	__=@ @: "$@"
 }
@@ -1644,7 +1651,7 @@ function @: {
 
 	local __=$__ _x_out__=() _x_in__=() _x_elems=() _x_sls=() _x_sls_x=() _x_vals_x=() _x_val _x_i _x_l _x_pos _x_len _x_size _x_depth _x_sld _x_sll _x_spec _x_fct _x_sep _x_arg _x_args=() _x_pipe=() _x_errexit _x_rc _x_funcname=$CALLER_FUNCNAME_
 
-	[[ ! $__ || ${BASH_SOURCE[1]} != "$__functions" ]] && __=_
+	[[ ! $__ || ${BASH_SOURCE[1]} != "$__functions_SOURCE" ]] && __=_
 
 	while [[ ${#@} -gt 0 ]]; do
 		_x_spec=$1 && shift
@@ -1819,7 +1826,7 @@ function _caller {
 	for ((depth=2; depth<len; depth++)); do
 		source=${BASH_SOURCE[depth]}
 
-		[[ $source != "$__functions" ]] && break
+		[[ $source != "$__functions_SOURCE" ]] && break
 	done
 
 	[[ $depth -lt $len ]] || source=$0
@@ -1935,6 +1942,4 @@ __functions() {
 	)
 }
 
-__functions
-
-[[ $- == *i* ]] || __functions__=_
+__functions && __functions__=$__functions_ __functions_=
