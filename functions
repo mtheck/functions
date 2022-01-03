@@ -245,11 +245,12 @@ function echoc {
 	local out space spec
 
 	while [[ $# -gt 0 ]]; do
-		spec=${1#@}
+		spec=${1#@}; spec=${spec#:}; spec=${spec%@}
 
-		if [[ ${1:0:1} == @ ]] && { [[ ! ${spec%@} ]] || colorc "${spec%@}"; }; then
-			[[ ${spec%@} ]] && code=$COLORC
-			[[ $spec == *@ ]] && space=_ || space=
+		if [[ $1 == @* ]] && { [[ ! $spec ]] || colorc "$spec"; }; then
+			[[ $spec ]] && code=$COLORC
+			[[ $1 == @:* ]] && base=$code
+			[[ $1 == *@ ]] && space=_ || space=
 		else
 			if [[ ! $out ]]; then
 				if [[ $color ]]; then
@@ -282,11 +283,11 @@ function echoc {
 
 	[[ $color ]] && out+=$'\e'[0m
 
-	echo $nl "$out"
+	echo $nl "$out" || :
 }
 
 function echoe {
-	echoc "$@" >&2
+	echoc "$@" >&2 || :
 }
 
 function log {
@@ -328,7 +329,7 @@ function log {
 	fi
 	[[ $drop ]] && return 0
 
-	local log_prefix_opt log_prefix=$LOG_PREFIX prefix prefix_args=()
+	local log_prefix_opt log_prefix=$LOG_PREFIX prefix args=()
 
 	if [[ $log_prefix == [+-]* ]]; then
 		log_prefix_opt=${log_prefix:0:1}
@@ -345,21 +346,21 @@ function log {
 	[[ $log_level -ge 4 && $log_prefix_opt != - ]] && prefix=$log_prefix
 
 	if [[ $prefix ]]; then
-		prefix_args+=("$prefix")
+		args+=("$prefix")
 	fi
 
 	if bool "$LOG_DATE" || [[ ! $LOG_DATE && $log_level -ge 4 ]]; then
 		if [[ $LOG_DATE_FORMAT ]]; then
-			prefix_args+=("[$(date +"$LOG_DATE_FORMAT")]")
+			args+=("[$(date +"$LOG_DATE_FORMAT")]")
 		else
-			prefix_args+=("[$(date -In)]")
+			args+=("[$(date -In)]")
 		fi
 	fi
 
 	if bool "$LOG_SOURCE" || [[ ! $LOG_SOURCE && $log_level -ge 5 ]]; then
 		_caller
 
-		prefix_args+=("{$CALLER_SOURCE@$CALLER_LINENO}")
+		args+=("{$CALLER_SOURCE@$CALLER_LINENO}")
 
 		_caller_
 	fi
@@ -376,14 +377,19 @@ function log {
 	fi
 
 	if [[ $header ]]; then
-		prefix_args+=(@$header_color@ "$header")
-		prefix_args+=(@$sep_color ':')
+		args+=(@$header_color@ "$header")
+		args+=(@$sep_color ':')
 	fi
 
-	[[ ${#prefix_args[@]} -gt 0 ]] && prefix_args+=('')
+	args+=(@:$color)
 
-	ECHOC_BASE=none echoe -n "${prefix_args[@]}"
-	ECHOC_BASE=$color echoe "$@"
+	[[ ${#args[@]} -gt 1 ]] && args[-1]+=@
+
+	args+=("$@")
+
+	[[ $LOG_FILE ]] && ECHOC=0 echoc "${args[@]}" >> "$LOG_FILE" && return
+
+	ECHOC_BASE=none echoe "${args[@]}"
 }
 
 function ask {
@@ -1479,6 +1485,7 @@ function run_exit {
 	trap _run_exit_ EXIT
 }
 
+
 function _run_exit_ {
 	local len
 	while [[ ${#_run_exit_s[@]} -gt 0 ]]; do
@@ -1708,7 +1715,7 @@ function @: {
 
 	shopt -qo errexit && _x_errexit=_
 
-	if [[ $__ == @ ]] || "$_x_pipe":__ _ @; then
+	if [[ $__ == @ ]] || { [[ $__ == _ ]] && "$_x_pipe":__ _ @; }; then
 		_var "$_x_vals" || return
 
 		eval _x_vals='("${'$_x_vals'[@]}")'
