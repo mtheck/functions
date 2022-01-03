@@ -345,10 +345,6 @@ function log {
 
 	[[ $log_level -ge 4 && $log_prefix_opt != - ]] && prefix=$log_prefix
 
-	if [[ $prefix ]]; then
-		args+=("$prefix")
-	fi
-
 	if bool "$LOG_DATE" || [[ ! $LOG_DATE && $log_level -ge 4 ]]; then
 		if [[ $LOG_DATE_FORMAT ]]; then
 			args+=("[$(date +"$LOG_DATE_FORMAT")]")
@@ -381,13 +377,11 @@ function log {
 		args+=(@$sep_color ':')
 	fi
 
-	args+=(@:$color)
+	args+=(@:$color@ "$@")
 
-	[[ ${#args[@]} -gt 1 ]] && args[-1]+=@
+	[[ $LOG_FILE ]] && ECHOC=0 echoc "${args[@]}" >> "$LOG_FILE" && return 0
 
-	args+=("$@")
-
-	[[ $LOG_FILE ]] && ECHOC=0 echoc "${args[@]}" >> "$LOG_FILE" && return
+	[[ $prefix ]] && args=("$prefix" "${args[@]}")
 
 	ECHOC_BASE=none echoe "${args[@]}"
 }
