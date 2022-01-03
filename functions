@@ -1421,15 +1421,19 @@ function run {
 function run_job {
 	[[ $# -gt 0 ]] || return $(errorf)
 
+	if [[ $# -eq 1 && $1 == *' '* && $SHELL ]]; then
+		set -- "$SHELL" -c "$1"
+	fi
+
 	set -m
 
-	run "$@" &
+	"$@" &
 
 	local pid=$(jobs -p % 2>/dev/null)
 
 	[[ $pid ]] || return
 
-	_trace && trace "Running job process: $pid"
+	_trace && trace "Running job $pid: $@"
 
 	run_exit kill_job $pid
 }
@@ -1506,6 +1510,10 @@ function coproc_run {
 
 	local name=$1 && shift && valid_name "$name" || return $(errorf "Invalid coprocess name")
 
+	if [[ $# -eq 1 && $1 == *' '* && $SHELL ]]; then
+		set -- "$SHELL" -c "$1"
+	fi
+
 	set -m
 
 	coproc "$@"
@@ -1514,7 +1522,7 @@ function coproc_run {
 	_coproc[$name:0]=${COPROC[0]}
 	_coproc[$name:1]=${COPROC[1]}
 
-	_trace && trace "Running coprocess: $name ($COPROC_PID)"
+	_trace && trace "Running coprocess $COPROC_PID $name: $@"
 
 	run_exit coproc_kill $name
 }
