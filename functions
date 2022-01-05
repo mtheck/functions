@@ -1628,8 +1628,6 @@ function -@ {
 		echo "${_x_var__[*]}"
 
 		IFS=$_x_ifs
-
-		unset -v _x_var__
 	done
 }
 
@@ -1643,6 +1641,14 @@ function -@@ {
 	local IFS=$'\n'
 
 	echo "${_x_var__[*]}"
+}
+
+function -@@: {
+	local _x_var=$1 _x_var__ && shift || return $(errorf)
+
+	readarray -t _x_var__
+
+	__=@ @: "$_x_var" _x_var__ "$@"
 }
 
 function @@: {
@@ -1717,7 +1723,7 @@ function @: {
 
 	shopt -qo errexit && _x_errexit=_
 
-	if [[ $__ == @ ]] || { [[ $__ == _ ]] && "$_x_pipe":__ _ @; }; then
+	if [[ $__ == - ]] || { [[ $__ == _ ]] && "$_x_pipe":__ _ -; }; then :; else
 		_var "$_x_vals" || return
 
 		eval _x_vals='("${'$_x_vals'[@]}")'
