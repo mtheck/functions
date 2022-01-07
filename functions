@@ -1547,6 +1547,8 @@ function _run_exit_ {
 	done
 
 	_trace && trace "Running exit hooks done"
+
+	return 0
 }
 
 function coproc_run {
