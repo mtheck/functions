@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-__functions_=-${-//[!i]} && [[ $__functions_ == "$__functions__" ]] && return
+[[ $__functions__ ]] && return
 
 shopt -qo posix && return 126
 
-__functions_SOURCE=$BASH_SOURCE __functions_PID=$BASHPID
+__functions=$BASH_SOURCE
 
 declare -r LOG_LEVEL_NONE=_
 declare -r -i LOG_LEVEL_ERROR=0
@@ -1714,7 +1714,7 @@ function @: {
 
 	local __=$__ _x_out__=() _x_in__=() _x_elems=() _x_sls=() _x_sls_x=() _x_vals_x=() _x_val _x_i _x_l _x_pos _x_len _x_size _x_depth _x_sld _x_sll _x_spec _x_fct _x_sep _x_arg _x_args=() _x_pipe=() _x_errexit _x_rc _x_funcname=$CALLER_FUNCNAME_
 
-	[[ ! $__ || ${BASH_SOURCE[1]} != "$__functions_SOURCE" ]] && __=_
+	[[ ! $__ || ${BASH_SOURCE[1]} != "$__functions" ]] && __=_
 
 	while [[ ${#@} -gt 0 ]]; do
 		_x_spec=$1 && shift
@@ -1891,7 +1891,7 @@ function _caller {
 	for ((depth=2; depth<len; depth++)); do
 		source=${BASH_SOURCE[depth]}
 
-		[[ $source != "$__functions_SOURCE" ]] && break
+		[[ $source != "$__functions" ]] && break
 	done
 
 	[[ $depth -lt $len ]] || source=$0
@@ -2007,4 +2007,4 @@ __functions() {
 	)
 }
 
-__functions && __functions__=$__functions_ __functions_=
+__functions && __functions__=_
