@@ -541,6 +541,18 @@ function count:[-@] {
 	eval $1=\${#$2[@]}
 }
 
+function index:[-@] {
+	[[ $# -ge 2 && $# -le 3 ]] || return $(errorf)
+
+	_var "$1" && _var "$2" || return
+
+	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
+
+	local _x_key=$3 && [[ $3 ]] || _x_key=0
+
+	eval $1=\${$2[\$_x_key]}
+}
+
 function total:[-@] {
 	[[ $# -eq 2 ]] || return $(errorf)
 
@@ -1049,6 +1061,31 @@ function tie:[-@] {
 	eval $1=\$_x_out
 }
 
+function reverse:[@@] {
+	[[ $# -eq 2 ]] || return $(errorf)
+
+	local _x_var=$1 _x_arr=$2 && _var "$1" && _var "$2" || return
+
+	if _debug; then
+		is_array "$_x_var" || [[ $? -eq 1 ]] || warnf "Output variable is not an array"
+		is_array "$_x_arr" || warnf "Variable is not an array"
+	fi
+
+	local _x_i _x_tmp _x_out=()
+
+	eval _x_out='("${'$_x_arr'[@]}")'
+
+	_x_i=$((${#_x_out[@]}/2))
+
+	while [[ $_x_i -gt 0 ]]; do
+		_x_tmp=${_x_out[-_x_i]}
+		_x_out[-_x_i]=${_x_out[_x_i-1]}
+		_x_out[--_x_i]=$_x_tmp
+	done
+
+	eval $_x_var='("${_x_out[@]}")'
+}
+
 function map_new {
 	[[ $# -ge 1 ]] || return $(errorf)
 
@@ -1371,33 +1408,37 @@ function map_len {
 function tmp_file {
 	[[ $# -le 1 ]] || return $(errorf)
 
-	local tmpdir_arg=--tmpdir
+	local tmp tmpdir_arg=--tmpdir
 	if [[ $# -ge 1 ]]; then
 		[[ -d $1 ]] || return $(errorf "Invalid target directory: $1")
 		tmpdir_arg+==$1
 	fi
 
-	TMP_FILE=$(mktemp "$tmpdir_arg" --suffix .tmp tmp_$(uuidgen)_XXXXXXXX)
+	tmp=$(mktemp "$tmpdir_arg" --suffix .tmp tmp_$(uuidgen)_XXXXXXXX)
 
-	_trace && trace "Temporary file: $TMP_FILE"
+	_trace && trace "Temporary file: $tmp"
 
-	run_exit rm -f "$TMP_FILE"
+	run_exit rm -f "$tmp"
+
+	TMP_FILE=$tmp
 }
 
 function tmp_dir {
 	[[ $# -le 1 ]] || return $(errorf)
 
-	local tmpdir_arg=--tmpdir
+	local tmp tmpdir_arg=--tmpdir
 	if [[ $# -ge 1 ]]; then
 		[[ -d $1 ]] || return $(errorf "Invalid target directory: $1")
 		tmpdir_arg+==$1
 	fi
 
-	TMP_DIR=$(mktemp "$tmpdir_arg" --directory tmp_$(uuidgen)_XXXXXXXX)
+	tmp=$(mktemp "$tmpdir_arg" --directory tmp_$(uuidgen)_XXXXXXXX)
 
-	_trace && trace "Temporary directory: $TMP_DIR"
+	_trace && trace "Temporary directory: $tmp"
 
-	run_exit rm -rf "$TMP_DIR"
+	run_exit rm -rf "$tmp"
+
+	TMP_DIR=$tmp
 }
 
 function require_command {
@@ -1485,11 +1526,13 @@ function run_exit {
 
 
 function _run_exit_ {
+	_trace && trace "Running exit hooks start"
+
 	local len
 	while [[ ${#_run_exit_s[@]} -gt 0 ]]; do
 		[[ ${_run_exit_p[-1]} == $BASHPID ]] || break
 
-		_trace && trace "Exit run #${#_run_exit_s[@]}"
+		_trace && trace "Running exit hook #${#_run_exit_s[@]}"
 
 		len=${_run_exit_s[-1]}
 
@@ -1499,6 +1542,8 @@ function _run_exit_ {
 		unset -v _run_exit_s[-1]
 		unset -v _run_exit_p[-1]
 	done
+
+	_trace && trace "Running exit hooks done"
 }
 
 function coproc_run {
@@ -1681,6 +1726,8 @@ function @: {
 		fi
 
 		_x_fct=${_x_spec%%\[*}
+
+		[[ $_x_fct ]] || return $(errorf "Missing function name in argument: $_x_spec")
 
 		is_pipeline "$_x_fct" || return $(errorf "Function not a pipeline: $_x_fct")
 
