@@ -6,26 +6,29 @@ shopt -qo posix && return 126
 
 __functions_SOURCE=$BASH_SOURCE __functions_PID=$BASHPID
 
-_error_ () { echo 0; }
-_warn_  () { echo 1; }
-_note_  () { echo 2; }
-_msg_   () { echo 3; }
-_debug_ () { echo 4; }
-_trace_ () { echo 5; }
+declare -r LOG_LEVEL_NONE=_
+declare -r -i LOG_LEVEL_ERROR=0
+declare -r -i LOG_LEVEL_WARN=LOG_LEVEL_ERROR+1  # 1
+declare -r -i LOG_LEVEL_NOTE=LOG_LEVEL_WARN+1   # 2
+declare -r -i LOG_LEVEL_MSG=LOG_LEVEL_NOTE+1    # 3
+declare -r -i LOG_LEVEL_DEBUG=LOG_LEVEL_MSG+1   # 4
+declare -r -i LOG_LEVEL_TRACE=LOG_LEVEL_DEBUG+1 # 5
 
-_error () { log -0; }
-_warn  () { log -1; }
-_note  () { log -2; }
-_msg   () { log -3; }
-_debug () { log -4; }
-_trace () { log -5; }
+declare -x LOG_LEVEL # = $LOG_LEVEL_MSG
 
-error () { log 0 "$@"; exit 1; }
-warn  () { log 1 "$@"; }
-note  () { log 2 "$@"; }
-msg   () { log 3 "$@"; }
-debug () { log 4 "$@"; }
-trace () { log 5 "$@"; }
+_error () { log -$LOG_LEVEL_ERROR; }
+_warn  () { log -$LOG_LEVEL_WARN; }
+_note  () { log -$LOG_LEVEL_NOTE; }
+_msg   () { log -$LOG_LEVEL_MSG; }
+_debug () { log -$LOG_LEVEL_DEBUG; }
+_trace () { log -$LOG_LEVEL_TRACE; }
+
+error () { log $LOG_LEVEL_ERROR "$@"; exit 1; }
+warn  () { log $LOG_LEVEL_WARN "$@"; }
+note  () { log $LOG_LEVEL_NOTE "$@"; }
+msg   () { log $LOG_LEVEL_MSG "$@"; }
+debug () { log $LOG_LEVEL_DEBUG "$@"; }
+trace () { log $LOG_LEVEL_TRACE "$@"; }
 
 function errorf {
 	[[ $# -gt 0 ]] || set "Invalid arguments"
@@ -315,10 +318,10 @@ function log {
 
 	[[ $level_def ]] || return $(errorf "Unknown log level")
 
-	if [[ $log_level == _ ]]; then
+	if [[ $log_level == $LOG_LEVEL_NONE ]]; then
 		drop=_
 	else
-		valid_uint "$log_level" || log_level=3
+		valid_uint "$log_level" || log_level=$LOG_LEVEL_MSG
 
 		[[ $log_level -lt $level ]] && drop=_
 	fi
@@ -343,9 +346,9 @@ function log {
 
 	[[ -t 2 && $log_prefix_opt != + ]] || prefix=$log_prefix
 
-	[[ $log_level -ge 4 && $log_prefix_opt != - ]] && prefix=$log_prefix
+	[[ $log_level -ge $LOG_LEVEL_DEBUG && $log_prefix_opt != - ]] && prefix=$log_prefix
 
-	if bool "$LOG_DATE" || [[ ! $LOG_DATE && $log_level -ge 4 ]]; then
+	if bool "$LOG_DATE" || [[ ! $LOG_DATE && $log_level -ge $LOG_LEVEL_DEBUG ]]; then
 		if [[ $LOG_DATE_FORMAT ]]; then
 			args+=("[$(date +"$LOG_DATE_FORMAT")]")
 		else
@@ -353,7 +356,7 @@ function log {
 		fi
 	fi
 
-	if bool "$LOG_SOURCE" || [[ ! $LOG_SOURCE && $log_level -ge 5 ]]; then
+	if bool "$LOG_SOURCE" || [[ ! $LOG_SOURCE && $log_level -ge $LOG_LEVEL_TRACE ]]; then
 		_caller
 
 		args+=("{$CALLER_SOURCE@$CALLER_LINENO}")
