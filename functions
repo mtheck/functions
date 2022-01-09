@@ -1737,7 +1737,7 @@ coproc:read_field () {
 @: () {
 	[[ $# -ge 3 ]] || errorf || return
 
-	local _x_var=$1 _x_vals=($2) && _var "$1" && shift 2 || return
+	local _x_var=$1 _x_vals=("$2") && _var "$1" && shift 2 || return
 
 	local __=$__ _x_out__=() _x_in__=() _x_elems=() _x_sls=() _x_sls_x=() _x_vals_x=() _x_val _x_i _x_l _x_pos _x_len _x_size _x_depth _x_sld _x_sll _x_spec _x_fct _x_sep _x_arg _x_args=() _x_pipe=() _x_errexit _x_rc _x_funcname=$CALLER_FUNCNAME_
 
