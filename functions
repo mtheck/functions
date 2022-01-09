@@ -236,7 +236,7 @@ echoc () {
 	local color base code
 
 	if [[ $ECHOC ]]; then
-		bool $ECHOC && color=_
+		bool "$ECHOC" && color=_
 	else
 		[[ -t 1 ]] && color=_
 	fi
@@ -548,7 +548,7 @@ push () {
 
 	[[ $_x_cur ]] && _x_out+=("$_x_cur")
 
-	eval $_x_arr='("${_x_out[@]}")'
+	eval $_x_arr='("${'_x_out'[@]}")'
 }
 
 len:[--] () {
@@ -566,7 +566,7 @@ count:[-@] () {
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
-	eval $1=\${#$2[@]}
+	eval $1='${#'$2'[@]}'
 }
 
 index:[-@] () {
@@ -578,7 +578,7 @@ index:[-@] () {
 
 	local _x_key=$3 && [[ $3 ]] || _x_key=0
 
-	eval $1=\${$2[\$_x_key]}
+	eval $1='${'$2'[$_x_key]}'
 }
 
 total:[-@] () {
@@ -660,9 +660,7 @@ quote:[--] () {
 
 	_var "$1" || return
 
-	local _x_str="'${2//\'/\'\\\'\'}'"
-
-	eval $1=\$_x_str
+	eval $1='${2@Q}'
 }
 
 jquote:[--] () {
@@ -743,9 +741,7 @@ upper:[--] () {
 
 	_var "$1" || return
 
-	local _x_str=${2^^}
-
-	eval $1=\$_x_str
+	eval $1='${2^^}'
 }
 
 lower:[--] () {
@@ -753,9 +749,7 @@ lower:[--] () {
 
 	_var "$1" || return
 
-	local _x_str=${2,,}
-
-	eval $1=\$_x_str
+	eval $1='${2,,}'
 }
 
 upperf:[--] () {
@@ -763,9 +757,7 @@ upperf:[--] () {
 
 	_var "$1" || return
 
-	local _x_str=${2^}
-
-	eval $1=\$_x_str
+	eval $1='${2^}'
 }
 
 lowerf:[--] () {
@@ -773,9 +765,7 @@ lowerf:[--] () {
 
 	_var "$1" || return
 
-	local _x_str=${2,}
-
-	eval $1=\$_x_str
+	eval $1='${2,}'
 }
 
 file_dir:[--] () {
@@ -966,7 +956,7 @@ filter:[@@] () {
 		_x_out+=("$_x_elem")
 	done
 
-	eval $_x_var='("${_x_out[@]}")'
+	eval $_x_var='("${'_x_out'[@]}")'
 }
 
 map:[@@] () {
@@ -1015,7 +1005,7 @@ map:[@@] () {
 		_x_out+=("$_x_elem_")
 	done
 
-	eval $_x_var='("${_x_out[@]}")'
+	eval $_x_var='("${'_x_out'[@]}")'
 }
 
 sep:[@-] () {
@@ -1067,7 +1057,7 @@ sep:[@-] () {
 		[[ $_x_str ]] || break
 	done
 
-	eval $1='("${_x_out[@]}")'
+	eval $1='("${'_x_out'[@]}")'
 }
 
 tie:[-@] () {
@@ -1111,7 +1101,7 @@ reverse:[@@] () {
 		_x_out[--_x_i]=$_x_tmp
 	done
 
-	eval $1='("${_x_out[@]}")'
+	eval $1='("${'_x_out'[@]}")'
 }
 
 map:new () {
@@ -1125,7 +1115,7 @@ map:new () {
 		declare -g -A $_x_var
 	fi
 
-	eval _x_len=\${#$_x_var[@]} && [[ $_x_len -eq 0 ]] || errorf "Map variable must be empty" || return
+	eval _x_len='${#'$_x_var'[@]}' && [[ $_x_len -eq 0 ]] || errorf "Map variable must be empty" || return
 
 	if [[ $# -eq 0 ]]; then
 		set -- -
@@ -1135,7 +1125,7 @@ map:new () {
 		done
 	fi
 
-	IFS=' ' eval $_x_var[:]='"$*"'
+	IFS=' ' eval $_x_var'[:]="$*"'
 }
 
 map:get () {
@@ -1157,18 +1147,18 @@ map:get () {
 
 	local _x_fields _x_field _x_len _x_sets
 
-	eval _x_fields=\${$_x_var[:]}
+	eval _x_fields='${'$_x_var'[:]}'
 
 	[[ $_x_fields ]] || errorf "Map variable invalid" || return
 
 	if [[ $_x_fields == - ]]; then
-		eval _x_len=\${$_x_var[\$_x_key:]}
+		eval _x_len='${'$_x_var'[$_x_key:]}'
 
 		_x_sets=()
 
 		if [[ $_x_len ]]; then
 			for ((_x_field=0; _x_field<_x_len; _x_field++)); do
-				_x_sets+=($_x_target[$_x_field]=\${$_x_var[\$_x_key:$_x_field]})
+				_x_sets+=($_x_target'['$_x_field']=${'$_x_var'[$_x_key:'$_x_field']}')
 			done
 		else
 			_x_len=0
@@ -1195,7 +1185,7 @@ map:get () {
 		_x_sets=()
 
 		for _x_field in $_x_fields; do
-			_x_sets+=($_x_target[$_x_field]=\${$_x_var[\$_x_key:$_x_field]})
+			_x_sets+=($_x_target'['$_x_field']=${'$_x_var'[$_x_key:'$_x_field']}')
 		done
 
 		eval "${_x_sets[@]}"
@@ -1226,7 +1216,7 @@ map:set () {
 
 	local _x_fields _x_field _x_sets _x_len=_
 
-	eval _x_fields=\${$_x_var[:]}
+	eval _x_fields='${'$_x_var'[:]}'
 
 	[[ $_x_fields ]] || errorf "Map variable invalid" || return
 
@@ -1242,7 +1232,7 @@ map:set () {
 
 			_x_field=$((_x_field+0))
 
-			_x_sets+=($_x_var[\$_x_key:$_x_field]=\${$_x_target[$_x_field]})
+			_x_sets+=($_x_var'[$_x_key:'$_x_field']=${'$_x_target'['$_x_field']}')
 
 			[[ $_x_field -gt $_x_len ]] && _x_len=$_x_field
 		done
@@ -1253,13 +1243,13 @@ map:set () {
 			eval "${_x_sets[@]}"
 		fi
 
-		eval _x_fields=\${$_x_var[\$_x_key:]}
+		eval _x_fields='${'$_x_var'[$_x_key:]}'
 
 		if [[ $_x_fields ]]; then
 			_x_sets=()
 
 			for ((_x_field=$((_x_fields-1)); _x_field>=_x_len; _x_field--)); do
-				_x_sets+=($_x_var[\$_x_key:$_x_field])
+				_x_sets+=($_x_var'[$_x_key:'$_x_field']')
 			done
 
 			if [[ ${#_x_sets[@]} -gt 0 ]]; then
@@ -1270,13 +1260,13 @@ map:set () {
 		_x_sets=()
 
 		for _x_field in $_x_fields; do
-			_x_sets+=($_x_var[\$_x_key:$_x_field]=\${$_x_target[$_x_field]})
+			_x_sets+=($_x_var'[$_x_key:'$_x_field']=${'$_x_target'['$_x_field']}')
 		done
 
 		eval "${_x_sets[@]}"
 	fi
 
-	eval $_x_var[\$_x_key:]=$_x_len
+	eval $_x_var'[$_x_key:]'=$_x_len
 }
 
 map:push () {
@@ -1301,7 +1291,7 @@ map:del () {
 		[[ $_x_fkey == *:* ]] || continue
 		[[ ${_x_fkey%:*} == "$_x_key" ]] || continue
 
-		eval unset -v $_x_var[\$_x_fkey]
+		eval unset -v $_x_var'[$_x_fkey]'
 	done
 }
 
@@ -1320,7 +1310,7 @@ map:clear () {
 
 	local _x_fields _x_field _x_sets
 
-	eval _x_fields=\${$_x_var[:]}
+	eval _x_fields='${'$_x_var'[:]}'
 
 	[[ $_x_fields ]] || errorf "Map variable invalid" || return
 
@@ -1358,7 +1348,7 @@ map:key () {
 
 	[[ $_x_key ]] || errorf "Illegal empty key" || return
 
-	eval _x_found=\${$_x_var[\$_x_key:]}
+	eval _x_found='${'$_x_var'[$_x_key:]}'
 
 	[[ $_x_found ]]
 }
@@ -1396,7 +1386,7 @@ map:fields () {
 		is_array "$_x_target" || warnf "Target variable is not an array"
 	fi
 
-	eval _x_fields=\${$_x_var[:]}
+	eval _x_fields='${'$_x_var'[:]}'
 
 	[[ $_x_fields ]] || errorf "Map variable invalid" || return
 
@@ -1415,7 +1405,7 @@ map:len () {
 	if [[ $# -ge 3 ]]; then
 		[[ $_x_key ]] || errorf "Illegal empty key" || return
 
-		eval _x_len=\${$_x_var[\$_x_key:]}
+		eval _x_len='${'$_x_var'[$_x_key:]}'
 
 		[[ $_x_len != _ ]] || errorf "Map variable is structured" || return
 
@@ -1902,7 +1892,7 @@ coproc:read_field () {
 	if [[ ${#_x_vals[@]} -ne 1 ]]; then
 		eval $_x_var='("${_x_vals[@]}")'
 	else
-		eval _x_len=\${#$_x_var[@]}
+		eval _x_len='${#'$_x_var'[@]}'
 
 		if [[ $_x_len -gt 1 ]]; then
 			eval $_x_var='("$_x_vals")'
@@ -2006,7 +1996,7 @@ __functions () {
 			}
 
 			'"$name"': () {
-				'"$fct"' "$@"
+				'"'$fct'"' "$@"
 			}
 
 			'"$name"':: () {
@@ -2018,13 +2008,13 @@ __functions () {
 
 				eval _x_val_='"$in_set"'
 
-				'"$fct"' $_x_var_ "'"$in_val"'" "$@"
+				'"'$fct'"' $_x_var_ "'"$in_val"'" "$@"
 			}
 
 			'"$name"' () {
 				local _x_var_='"$out_ini"'
 
-				'"$fct"' _x_var_ "$@"
+				'"'$fct'"' _x_var_ "$@"
 
 				local IFS=$'\''\n'\''
 
