@@ -8,25 +8,25 @@ __functions=$BASH_SOURCE
 
 declare -r LOG_LEVEL_NONE=_
 declare -r -i LOG_LEVEL_ERROR=0
-declare -r -i LOG_LEVEL_WARN=LOG_LEVEL_ERROR+1  # 1
-declare -r -i LOG_LEVEL_NOTE=LOG_LEVEL_WARN+1   # 2
-declare -r -i LOG_LEVEL_MSG=LOG_LEVEL_NOTE+1    # 3
-declare -r -i LOG_LEVEL_DEBUG=LOG_LEVEL_MSG+1   # 4
-declare -r -i LOG_LEVEL_TRACE=LOG_LEVEL_DEBUG+1 # 5
+declare -r -i LOG_LEVEL_WARNING=1
+declare -r -i LOG_LEVEL_NOTE=2
+declare -r -i LOG_LEVEL_INFO=3
+declare -r -i LOG_LEVEL_DEBUG=4
+declare -r -i LOG_LEVEL_TRACE=5
 
-declare -x LOG_LEVEL # = $LOG_LEVEL_MSG
+declare -x LOG_{LEVEL,PREFIX,DATE,DATE_FORMAT,SOURCE,JSON,FILE}
 
 _error () { log -$LOG_LEVEL_ERROR; }
-_warn  () { log -$LOG_LEVEL_WARN; }
+_warn  () { log -$LOG_LEVEL_WARNING; }
 _note  () { log -$LOG_LEVEL_NOTE; }
-_msg   () { log -$LOG_LEVEL_MSG; }
+_msg   () { log -$LOG_LEVEL_INFO; }
 _debug () { log -$LOG_LEVEL_DEBUG; }
 _trace () { log -$LOG_LEVEL_TRACE; }
 
 error () { log $LOG_LEVEL_ERROR "$@"; exit 1; }
-warn  () { log $LOG_LEVEL_WARN "$@"; }
+warn  () { log $LOG_LEVEL_WARNING "$@"; }
 note  () { log $LOG_LEVEL_NOTE "$@"; }
-msg   () { log $LOG_LEVEL_MSG "$@"; }
+msg   () { log $LOG_LEVEL_INFO "$@"; }
 debug () { log $LOG_LEVEL_DEBUG "$@"; }
 trace () { log $LOG_LEVEL_TRACE "$@"; }
 
@@ -301,12 +301,12 @@ function log {
 	valid_int "$level" || return $(errorf "Invalid log level")
 
 	local levels=(
-		Error:red
-		Warning:yellow
-		Note:green
-		:cyan
-		DEBUG:
-		TRACE:
+		error:Error:red
+		warning:Warning:yellow
+		note:Note:green
+		info::cyan
+		debug:DEBUG:
+		trace:TRACE:
 	)
 
 	if [[ $level == -* ]] ; then
@@ -314,14 +314,14 @@ function log {
 		level=${level##*-}
 	fi
 
-	local level_def=${levels[$level]} log_level=${LOG_LEVEL}
+	local level_def=${levels[$level]} log_level=$LOG_LEVEL
 
 	[[ $level_def ]] || return $(errorf "Unknown log level")
 
 	if [[ $log_level == $LOG_LEVEL_NONE ]]; then
 		drop=_
 	else
-		valid_uint "$log_level" || log_level=$LOG_LEVEL_MSG
+		valid_uint "$log_level" || log_level=$LOG_LEVEL_INFO
 
 		[[ $log_level -lt $level ]] && drop=_
 	fi
@@ -332,59 +332,84 @@ function log {
 	fi
 	[[ $drop ]] && return 0
 
-	local log_prefix_opt log_prefix=$LOG_PREFIX prefix args=()
+	local -A field; local args=() name value json code header=${level_def%:*} color=${level_def##*:}; code=${header%:*} header=${header#*:}
 
-	if [[ $log_prefix == [+-]* ]]; then
-		log_prefix_opt=${log_prefix:0:1}
-		log_prefix=${log_prefix#?}
-	fi
-	if [[ $log_prefix == _ ]]; then
-		log_prefix=
-	elif [[ ! $log_prefix ]]; then
-		log_prefix='>>>'
-	fi
+	bool "$LOG_JSON" && json=_
 
-	[[ -t 2 && $log_prefix_opt != + ]] || prefix=$log_prefix
+	if [[ $json ]] || bool "$LOG_DATE" || [[ ! $LOG_DATE && $log_level -ge $LOG_LEVEL_DEBUG ]]; then
+		value=
+		[[ $LOG_DATE_FORMAT ]] && value=$(date +"$LOG_DATE_FORMAT")
+		[[ $value ]] || value=$(date -In)
 
-	[[ $log_level -ge $LOG_LEVEL_DEBUG && $log_prefix_opt != - ]] && prefix=$log_prefix
-
-	if bool "$LOG_DATE" || [[ ! $LOG_DATE && $log_level -ge $LOG_LEVEL_DEBUG ]]; then
-		if [[ $LOG_DATE_FORMAT ]]; then
-			args+=("[$(date +"$LOG_DATE_FORMAT")]")
-		else
-			args+=("[$(date -In)]")
-		fi
+		field[ts]=$value
 	fi
 
 	if bool "$LOG_SOURCE" || [[ ! $LOG_SOURCE && $log_level -ge $LOG_LEVEL_TRACE ]]; then
+		field[pid]=$BASHPID
+
 		_caller
 
-		args+=("{$CALLER_SOURCE@$CALLER_LINENO}")
+		field[source]=$CALLER_SOURCE@$CALLER_LINENO
 
 		_caller_
 	fi
 
-	local header=${level_def%%:*} color=${level_def##*:}
+	if [[ $json ]]; then
+		json={
 
-	[[ $color ]] || color=none
+		value=${field[ts]} && [[ $value ]] && jquote:: value && json+='"ts":'"$value",
+		value=${field[pid]} && [[ $value ]] && json+='"pid":"'"$value"'"',
+		value=${field[source]} && [[ $value ]] && jquote:: value && json+='"source":'"$value",
 
-	local header_color=$color sep_color=$color
+		json+='"level":"'$code'"',
 
-	if [[ $color != none ]]; then
-		header_color+=+=
-		sep_color+=+
+		jquote: value "$(echoc "$@")"
+		json+='"msg":'"$value"}
+
+		args=("$json")
+	else
+		if [[ ! $LOG_FILE ]]; then
+			local log_prefix_opt log_prefix=$LOG_PREFIX prefix
+
+			if [[ $log_prefix == [+-]* ]]; then
+				log_prefix_opt=${log_prefix:0:1}
+				log_prefix=${log_prefix#?}
+			fi
+			if [[ $log_prefix == _ ]]; then
+				log_prefix=
+			elif [[ ! $log_prefix ]]; then
+				log_prefix='>>>'
+			fi
+
+			[[ -t 2 && $log_prefix_opt != + ]] || prefix=$log_prefix
+
+			[[ $log_level -ge $LOG_LEVEL_DEBUG && $log_prefix_opt != - ]] && prefix=$log_prefix
+
+			[[ $prefix ]] && args+=("$prefix")
+		fi
+
+		value=${field[ts]} && [[ $value ]] && args+=("[$value]")
+		value=${field[pid]} && [[ $value ]] && args+=("$value")
+		value=${field[source]} && [[ $value ]] && args+=("{$value}")
+
+		[[ $color ]] || color=none
+
+		if [[ $header ]]; then
+			local header_color=$color sep_color=$color
+
+			if [[ $color != none ]]; then
+				header_color+=+=
+				sep_color+=+
+			fi
+
+			args+=(@$header_color@ "$header")
+			args+=(@$sep_color ':')
+		fi
+
+		args+=(@:$color@ "$@")
 	fi
-
-	if [[ $header ]]; then
-		args+=(@$header_color@ "$header")
-		args+=(@$sep_color ':')
-	fi
-
-	args+=(@:$color@ "$@")
 
 	[[ $LOG_FILE ]] && ECHOC=0 echoc "${args[@]}" >> "$LOG_FILE" && return 0
-
-	[[ $prefix ]] && args=("$prefix" "${args[@]}")
 
 	ECHOC_BASE=none echoe "${args[@]}"
 }
