@@ -35,7 +35,7 @@ errorf () {
 
 	_caller
 
-	! ( error "{$CALLER_SOURCE@$CALLER_LINENO#$CALLER_FUNCNAME}" "$@" )
+	! ( error @red+@ '{' @red+% "$CALLER_SOURCE@$CALLER_LINENO#$CALLER_FUNCNAME" @red+ '}' "$@" )
 
 	_caller_
 
@@ -47,7 +47,7 @@ warnf () {
 
 	_caller
 
-	warn "{$CALLER_SOURCE@$CALLER_LINENO#$CALLER_FUNCNAME}" "$@"
+	warn @yellow+@ '{' @yellow+% "$CALLER_SOURCE@$CALLER_LINENO#$CALLER_FUNCNAME" @yellow+ '}' "$@"
 
 	_caller_
 }
@@ -55,26 +55,15 @@ warnf () {
 is_declared () {
 	[[ $# -ge 1 ]] || errorf || return
 
-	if [[ $# -eq 1 ]]; then
-		declare -p "$1" &>/dev/null
-		return
-	fi
+	declare -p "$1" &>/dev/null || return
 
-	local attrs=$(declare -p "$1" 2>/dev/null)
-	shift
+	[[ $# -eq 1 ]] && return
 
-	attrs=${attrs#* }
-	attrs=${attrs%% *}
+	local i attr attrs=${!1@a}; shift
 
-	[[ $attrs ]] || return 1
-
-	attrs=${attrs//-}
-
-	local i t_attrs
-	for t_attrs; do
-		t_attrs=${t_attrs//-}
-		for ((i=0; i<${#t_attrs}; i++)); do
-			[[ $attrs != *${t_attrs:i:1}* ]] && continue 2
+	for attr; do
+		for ((i=${#attr}-1; i>=0; i--)); do
+			[[ $attrs != *${attr:i:1}* ]] && continue 2
 		done
 		return 0
 	done
@@ -174,8 +163,7 @@ colorc () {
 		[magenta]=35
 		[cyan]=36
 		[white]=37
-	)
-	local -A sc=(
+	) sc=(
 		[+]=1
 		[-]=2
 		[/]=3
@@ -226,7 +214,7 @@ colorc () {
 
 	[[ $code ]] || return
 
-	COLORC=$'\e'[${code}m
+	COLORC=$'\e['$code\m
 }
 
 echoc () {
@@ -296,32 +284,23 @@ echoe () {
 log () {
 	[[ $# -ge 1 ]] || errorf || return
 
-	local level=$1 test drop && shift
+	local level=$1 test drop; shift
 
 	valid_int "$level" || errorf "Invalid log level" || return
-
-	local levels=(
-		error:Error:red
-		warning:Warning:yellow
-		note:Note:green
-		info::cyan
-		debug:DEBUG:
-		trace:TRACE:
-	)
 
 	if [[ $level == -* ]] ; then
 		test=_
 		level=${level##*-}
 	fi
 
-	local level_def=${levels[$level]} log_level=$LOG_LEVEL
+	[[ $level -le 5 ]] || errorf "Unknown log level" || return
 
-	[[ $level_def ]] || errorf "Unknown log level" || return
+	local log_level=$LOG_LEVEL
 
-	if [[ $log_level == $LOG_LEVEL_NONE ]]; then
+	if [[ $log_level == _ ]]; then
 		drop=_
 	else
-		valid_uint "$log_level" || log_level=$LOG_LEVEL_INFO
+		valid_uint "$log_level" || log_level=3
 
 		[[ $log_level -lt $level ]] && drop=_
 	fi
@@ -332,24 +311,32 @@ log () {
 	fi
 	[[ $drop ]] && return 0
 
-	local -A field; local args=() name value json code header=${level_def%:*} color=${level_def##*:}; code=${header%:*} header=${header#*:}
+	local levels=(
+		error:Error:red
+		warning:Warning:yellow
+		note:Note:green
+		info::cyan
+		debug:DEBUG:
+		trace:TRACE:
+	)
+
+	local -A field; local args=() name value json def=${levels[$level]}; local code header=${def%:*} color=${def##*:}; code=${header%:*} header=${header#*:}
 
 	bool "$LOG_JSON" && json=_
 
 	if [[ $json ]] || bool "$LOG_DATE" || [[ ! $LOG_DATE && $log_level -ge $LOG_LEVEL_DEBUG ]]; then
 		value=
-		[[ $LOG_DATE_FORMAT ]] && value=$(date +"$LOG_DATE_FORMAT")
+		[[ $LOG_DATE_FORMAT == %s ]] && value=$EPOCHSECONDS
+		[[ ! $value && $LOG_DATE_FORMAT ]] && value=$(date +"$LOG_DATE_FORMAT")
 		[[ $value ]] || value=$(date -In)
 
 		field[ts]=$value
 	fi
 
 	if bool "$LOG_SOURCE" || [[ ! $LOG_SOURCE && $log_level -ge $LOG_LEVEL_TRACE ]]; then
-		field[pid]=$BASHPID
-
 		_caller
 
-		field[source]=$CALLER_SOURCE@$CALLER_LINENO
+		field[pid]=$BASHPID field[source]=$CALLER_SOURCE@$CALLER_LINENO
 
 		_caller_
 	fi
@@ -402,8 +389,7 @@ log () {
 				sep_color+=+
 			fi
 
-			args+=(@$header_color@ "$header")
-			args+=(@$sep_color ':')
+			args+=(@$header_color@ "$header" @$sep_color :)
 		fi
 
 		args+=(@:$color@ "$@")
@@ -415,7 +401,7 @@ log () {
 }
 
 ask () {
-	local question=$1 && shift || :
+	local question=$1; shift || :
 
 	[[ $question ]] || question=?
 
@@ -492,7 +478,7 @@ valid_bool () {
 contains () {
 	[[ $# -ge 1 ]] || errorf || return
 
-	local val=$1 elem && shift
+	local val=$1 elem; shift
 
 	for elem; do
 		[[ $elem == "$val" ]] && return 0
@@ -511,7 +497,7 @@ selects () {
 concat () {
 	[[ $# -ge 1 ]] || errorf || return
 
-	local sep=$1 str set elem && shift
+	local sep=$1 str set elem; shift
 
 	for elem; do
 		[[ $set ]] && str+=$sep || set=_
@@ -666,7 +652,9 @@ quote:[--] () {
 jquote:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_str=${2//\\/\\\\} && _var "$1" || return
+	_var "$1" || return
+
+	local _x_str=${2//\\/\\\\}
 
 	_x_str="\"${_x_str//\"/\\\"}\""
 
@@ -676,7 +664,9 @@ jquote:[--] () {
 pad:[--] () {
 	[[ $# -ge 3 && $# -le 4 ]] || errorf || return
 
-	local _x_str=$2 _x_len=$3 _x_pad=$4 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_str=$2 _x_len=$3 _x_pad=$4
 
 	valid_uint "$_x_len" || errorf "Invalid pad length" || return
 
@@ -709,7 +699,9 @@ trimr:[--] () {
 _trim () {
 	[[ $# -ge 3 && $# -le 4 ]] || errorf || return
 
-	local _x_side=$1 _x_var=$2 _x_str=$3 _x_chars=$4 && _var "$2" || return
+	_var "$2" || return
+
+	local _x_side=$1 _x_var=$2 _x_str=$3 _x_chars=$4
 
 	[[ $# -gt 3 ]] || _x_chars=$' \t\n'
 
@@ -771,7 +763,9 @@ lowerf:[--] () {
 file_dir:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_file=$2 _x_root && _var "$1" || return
+	_var "$1" || return
+
+	local _x_file=$2 _x_root
 
 	while [[ $_x_file == */ ]]; do
 		_x_file=${_x_file:0:-1}
@@ -799,7 +793,9 @@ file_dir:[--] () {
 file_name:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_file=$2 _x_root && _var "$1" || return
+	_var "$1" || return
+
+	local _x_file=$2 _x_root
 
 	while [[ $_x_file == */ ]]; do
 		_x_file=${_x_file:0:-1}
@@ -821,7 +817,9 @@ file_name:[--] () {
 file_base:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_file_=$2 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_file_=$2
 
 	file_name: _x_file_ "$_x_file_"
 
@@ -833,7 +831,9 @@ file_base:[--] () {
 file_ext:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_file_=$2 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_file_=$2
 
 	file_name: _x_file_ "$_x_file_"
 
@@ -845,7 +845,9 @@ file_ext:[--] () {
 duration:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_duration=$2 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_duration=$2
 
 	local -A _x_units=(
 		[s]=1
@@ -881,7 +883,9 @@ duration:[--] () {
 filter:[@@] () {
 	[[ $# -ge 4 ]] || errorf || return
 
-	local _x_var=$1 _x_arr=$2 _x_op=$3 _x_type=_ _x_filter=$4 && _var "$1" && _var "$2" && shift 4 || return
+	_var "$1" && _var "$2" || return
+
+	local _x_var=$1 _x_arr=$2 _x_op=$3 _x_type=_ _x_filter=$4; shift 4
 
 	if _debug; then
 		is_array "$_x_var" || [[ $? -eq 1 ]] || warnf "Output variable is not an array"
@@ -962,7 +966,9 @@ filter:[@@] () {
 map:[@@] () {
 	[[ $# -ge 3 ]] || errorf || return
 
-	local _x_var=$1 _x_arr=$2 _x_exec=$3 && _var "$1" && _var "$2" && shift 3 || return
+	_var "$1" && _var "$2" || return
+
+	local _x_var=$1 _x_arr=$2 _x_exec=$3; shift 3
 
 	if _debug; then
 		is_array "$_x_var" || [[ $? -eq 1 ]] || warnf "Output variable is not an array"
@@ -1011,7 +1017,9 @@ map:[@@] () {
 sep:[@-] () {
 	[[ $# -ge 2 && $# -le 5 ]] || errorf || return
 
-	local _x_str=$2 _x_regex=$3 _x_limit=0 _x_keep= && _var "$1" || return
+	_var "$1" || return
+
+	local _x_str=$2 _x_regex=$3 _x_limit=0 _x_keep=
 
 	! _debug || is_array "$1" || [[ $? -eq 1 ]] || warnf "Output variable is not an array"
 
@@ -1063,7 +1071,9 @@ sep:[@-] () {
 tie:[-@] () {
 	[[ $# -ge 2 && $# -le 3 ]] || errorf || return
 
-	local _x_sep=$3 && _var "$1" || return
+	_var "$1" && _var "$2" || return
+
+	local _x_sep=$3
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -1107,7 +1117,9 @@ reverse:[@@] () {
 map:new () {
 	[[ $# -ge 1 ]] || errorf || return
 
-	local _x_var=$1 _x_field _x_len && _var "$1" && shift || return
+	_var "$1" || return
+
+	local _x_var=$1 _x_field _x_len; shift
 
 	if is_declared $_x_var; then
 		! _debug || is_hash "$_x_var" || warnf "Map variable is not an associative array"
@@ -1131,7 +1143,9 @@ map:new () {
 map:get () {
 	[[ $# -ge 2 && $# -le 3 ]] || errorf || return
 
-	local _x_var=$1 _x_key=$2 _x_target=$1 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_var=$1 _x_key=$2 _x_target=$1
 
 	! _debug || is_hash "$_x_var" || warnf "Map variable is not an associative array"
 
@@ -1175,7 +1189,7 @@ map:get () {
 
 			[[ $_x_field -gt $_x_len ]] || continue
 
-			_x_sets+=($_x_target[$_x_field])
+			_x_sets+=($_x_target'['$_x_field']')
 		done
 
 		if [[ ${#_x_sets[@]} -gt 0 ]]; then
@@ -1200,7 +1214,9 @@ map:pop () {
 map:set () {
 	[[ $# -ge 2 && $# -le 3 ]] || errorf || return
 
-	local _x_var=$1 _x_key=$2 _x_target=$1 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_var=$1 _x_key=$2 _x_target=$1
 
 	! _debug || is_hash "$_x_var" || warnf "Map variable is not an associative array"
 
@@ -1277,7 +1293,9 @@ map:push () {
 map:del () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_var=$1 _x_key=$2 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_var=$1 _x_key=$2
 
 	! _debug || is_hash "$_x_var" || warnf "Map variable is not an associative array"
 
@@ -1298,7 +1316,9 @@ map:del () {
 map:clear () {
 	[[ $# -ge 1 && $# -le 2 ]] || errorf || return
 
-	local _x_var=$1 _x_target=$1 && _var "$1" || return
+	_var "$1" || return
+
+	local _x_var=$1 _x_target=$1
 
 	! _debug || is_hash "$_x_var" || warnf "Map variable is not an associative array"
 
@@ -1322,7 +1342,7 @@ map:clear () {
 		for _x_field in "${_x_fields[@]}"; do
 			[[ $_x_field == *[![:digit:]]* ]] && continue
 
-			_x_sets+=($_x_target[$_x_field])
+			_x_sets+=($_x_target'['$_x_field']')
 		done
 
 		if [[ ${#_x_sets[@]} -gt 0 ]]; then
@@ -1332,7 +1352,7 @@ map:clear () {
 		_x_sets=()
 
 		for _x_field in $_x_fields; do
-			_x_sets+=($_x_target[$_x_field])
+			_x_sets+=($_x_target'['$_x_field']')
 		done
 
 		eval unset -v "${_x_sets[@]}"
@@ -1342,7 +1362,9 @@ map:clear () {
 map:key () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_var=$1 _x_key=$2 _x_found && _var "$1" || return
+	_var "$1" || return
+
+	local _x_var=$1 _x_key=$2 _x_found
 
 	! _debug || is_hash "$_x_var" || warnf "Map variable is not an associative array"
 
@@ -1356,7 +1378,9 @@ map:key () {
 map:keys () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_var=$1 _x_target=$2 && _var "$1" && _var "$2" || return
+	_var "$1" && _var "$2" || return
+
+	local _x_var=$1 _x_target=$2
 
 	if _debug; then
 		is_hash "$_x_var" || warnf "Map variable is not an associative array"
@@ -1379,7 +1403,9 @@ map:keys () {
 map:fields () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	local _x_var=$1 _x_target=$2 _x_fields && _var "$1" && _var "$2" || return
+	_var "$1" && _var "$2" || return
+
+	local _x_var=$1 _x_target=$2 _x_fields
 
 	if _debug; then
 		is_hash "$_x_var" || warnf "Map variable is not an associative array"
@@ -1398,7 +1424,9 @@ map:fields () {
 map:len () {
 	[[ $# -ge 2 && $# -le 3 ]] || errorf || return
 
-	local _x_var=$1 _x_target=$2 _x_key=$3 _x_len _x_keys && _var "$1" && _var "$2" || return
+	_var "$1" && _var "$2" || return
+
+	local _x_var=$1 _x_target=$2 _x_key=$3 _x_len _x_keys
 
 	! _debug || is_hash "$_x_var" || warnf "Map variable is not an associative array"
 
@@ -1472,7 +1500,7 @@ run () {
 		set -- "$SHELL" -c "$1"
 	fi
 
-	_trace && trace "Running: $@"
+	_trace && trace "Running: $*"
 
 	"$@"
 }
@@ -1492,7 +1520,7 @@ run_job () {
 
 	[[ $pid ]] || return
 
-	_trace && trace "Running job $pid: $@"
+	_trace && trace "Running job $pid: $*"
 
 	run_exit kill_job $pid
 }
@@ -1557,8 +1585,8 @@ _run_exit_ () {
 		run "${_run_exit_c[@]: -len}" || :
 
 		_run_exit_c=("${_run_exit_c[@]:0:${#_run_exit_c[@]}-len}")
-		unset -v _run_exit_s[-1]
-		unset -v _run_exit_p[-1]
+		unset -v _run_exit_s'[-1]'
+		unset -v _run_exit_p'[-1]'
 	done
 
 	_trace && trace "Running exit hooks done"
@@ -1573,7 +1601,9 @@ coproc:run () {
 
 	[[ ${_coproc[$1]} ]] && return
 
-	local name=$1 && shift && valid_name "$name" || errorf "Invalid coprocess name" || return
+	valid_name "$1" || errorf "Invalid coprocess name" || return
+
+	local name=$1; shift
 
 	if [[ $# -eq 1 && $1 == *' '* && $SHELL ]]; then
 		set -- "$SHELL" -c "$1"
@@ -1587,7 +1617,7 @@ coproc:run () {
 	_coproc[$name:0]=${COPROC[0]}
 	_coproc[$name:1]=${COPROC[1]}
 
-	_trace && trace "Running coprocess $COPROC_PID $name: $@"
+	_trace && trace "Running coprocess $COPROC_PID $name: $*"
 
 	run_exit coproc:kill $name
 }
@@ -1599,7 +1629,7 @@ coproc:kill () {
 
 	[[ $pid ]] || errorf "Unknown coprocess" || return
 
-	unset -v _coproc[$1] _coproc[$1:0] _coproc[$1:1]
+	unset -v _coproc'['$1{,:{0,1}}']'
 
 	kill_job $pid
 }
@@ -1607,7 +1637,7 @@ coproc:kill () {
 coproc:write () {
 	[[ $# -gt 1 ]] || errorf || return
 
-	local fd=${_coproc[$1:1]} && shift
+	local fd=${_coproc[$1:1]}; shift
 
 	[[ $fd ]] || errorf "Unknown coprocess" || return
 
@@ -1625,7 +1655,7 @@ coproc:write () {
 coproc:read_line () {
 	[[ $# -eq 1 ]] || errorf || return
 
-	local fd=${_coproc[$1:0]} && shift
+	local fd=${_coproc[$1:0]}; shift
 
 	[[ $fd ]] || errorf "Unknown coprocess" || return
 
@@ -1635,7 +1665,7 @@ coproc:read_line () {
 coproc:read_field () {
 	[[ $# -eq 1 ]] || errorf || return
 
-	local fd=${_coproc[$1:0]} && shift
+	local fd=${_coproc[$1:0]}; shift
 
 	[[ $fd ]] || errorf "Unknown coprocess" || return
 
@@ -1709,7 +1739,7 @@ coproc:read_field () {
 }
 
 -@@: () {
-	local _x_var=$1 _x_var__ && shift || errorf || return
+	local _x_var=$1 _x_var__; shift || errorf || return
 
 	readarray -t _x_var__
 
@@ -1727,14 +1757,16 @@ coproc:read_field () {
 @: () {
 	[[ $# -ge 3 ]] || errorf || return
 
-	local _x_var=$1 _x_vals=("$2") && _var "$1" && shift 2 || return
+	_var "$1" || return
+
+	local _x_var=$1 _x_vals=("$2"); shift 2
 
 	local __=$__ _x_out__=() _x_in__=() _x_elems=() _x_sls=() _x_sls_x=() _x_vals_x=() _x_val _x_i _x_l _x_pos _x_len _x_size _x_depth _x_sld _x_sll _x_spec _x_fct _x_sep _x_arg _x_args=() _x_pipe=() _x_errexit _x_rc _x_funcname=$CALLER_FUNCNAME_
 
 	[[ ! $__ || ${BASH_SOURCE[1]} != "$__functions" ]] && __=_
 
 	while [[ ${#@} -gt 0 ]]; do
-		_x_spec=$1 && shift
+		_x_spec=$1; shift
 
 		if [[ $_x_spec == @* && ( ${_x_spec:1} != *[!-]* || ${_x_spec:1} != *[!+]* ) ]]; then
 			_x_arg=$((${#_x_spec}-1))
@@ -1751,7 +1783,7 @@ coproc:read_field () {
 
 		is_pipeline "$_x_fct" || errorf "Function not a pipeline: $_x_fct" || return
 
-		_x_spec=${_x_spec:${#_x_fct}} _x_args= _x_args=()
+		_x_spec=${_x_spec:${#_x_fct}} _x_args=()
 
 		if [[ $_x_spec ]]; then
 			while :; do
@@ -1763,13 +1795,13 @@ coproc:read_field () {
 				if [[ $_x_sep == , ]]; then
 					_x_args+=("$_x_arg")
 				else
-					[[ $_x_sep == \[ && ${#_x_args[@]} -eq 0 ]] || errorf "Missing comma separator after argument of function:" $_x_fct ${_x_args[@]} $_x_arg || return
+					[[ $_x_sep == \[ && ${#_x_args[@]} -eq 0 ]] || errorf "Missing comma separator after argument of function:" $_x_fct ${_x_args[*]} $_x_arg || return
 				fi
 
 				if [[ ! $_x_spec ]]; then
-					_x_arg=$1 && shift || errorf "Missing isolated argument of function:" $_x_fct ${_x_args[@]} || return
+					_x_arg=$1; shift || errorf "Missing isolated argument of function:" $_x_fct ${_x_args[*]} || return
 
-					_x_spec=$1 && shift || errorf "Missing argument after isolated argument of function:" $_x_fct ${_x_args[@]} $_x_arg || return
+					_x_spec=$1; shift || errorf "Missing argument after isolated argument of function:" $_x_fct ${_x_args[*]} $_x_arg || return
 
 					[[ $_x_spec == \]* ]] && _x_args+=("$_x_arg") && _x_arg=
 
@@ -1780,7 +1812,7 @@ coproc:read_field () {
 				_x_spec=${_x_spec:${#_x_arg}}
 			done
 
-			[[ ! $_x_spec ]] || errorf "Unexpected content '$_x_spec' after arguments of function:" $_x_fct ${_x_args[@]} || return
+			[[ ! $_x_spec ]] || errorf "Unexpected content '$_x_spec' after arguments of function:" $_x_fct ${_x_args[*]} || return
 
 			[[ $_x_arg ]] && _x_args+=("$_x_arg")
 		fi
@@ -2002,9 +2034,9 @@ __functions () {
 			'"$name"':: () {
 				[[ $# -gt 0 ]] || errorf || return
 
-				local _x_var_=$1 _x_val_='"$in_ini"'
+				_var "$1" || return
 
-				_var "$1" && shift || return
+				local _x_var_=$1 _x_val_='"$in_ini"'; shift
 
 				eval _x_val_='"$in_set"'
 
