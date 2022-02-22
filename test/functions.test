@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+
+. ../functions
+
+test_value_assign_undeclared() {
+	! declare -p var &>/dev/null || t_fail
+
+	local err
+
+	= var abcD 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+}
+
+test_value_assign_illegal_name() {
+	local err
+
+	= var:rt abcD 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+}
+
+test_value_assign_scalar() {
+	local var=X
+
+	[[ $var && $var != abcD ]] || t_fail
+
+	= var abcD || t_fail
+
+	[[ $var == abcD ]] || t_fail
+	[[ ! ${var1@a} ]] || t_fail
+}
+
+test_value_assign_scalar_extra() {
+	local var=X
+
+	[[ $var && $var != abcD ]] || t_fail
+
+	= var planetX TOTO coco || t_fail
+
+	[[ $var == planetX ]] || t_fail
+	[[ ! ${var1@a} ]] || t_fail
+}
+
+test_value_assign_array() {
+	local -a var=(abc def ghi)
+
+	[[ ${#var[@]} -eq 3 ]] || t_fail
+	[[ ${var[2]} == ghi ]] || t_fail
+
+	= var qaz wsx edc rfv || t_fail
+
+	[[ ${#var[@]} -eq 4 ]] || t_fail
+	[[ ${var[2]} == edc ]] || t_fail
+}
+
+test_value_assign_assoc() {
+	local -A var=([k1]=abc [k2]=def [k3]=ghi  [k4]=jkl)
+
+	[[ ${#var[@]} -eq 4 ]] || t_fail
+	[[ ${var[k2]} ]] || t_fail
+
+	= var \
+		x1 ABC \
+		x3 GHI \
+		x2 DEF || t_fail
+
+	[[ ${#var[@]} -eq 3 ]] || t_fail
+	[[ ${var[x3]} == GHI ]] || t_fail
+	[[ ! ${var[k2]} ]] || t_fail
+}
+
+test_ref_assign_undeclared() {
+	local err var1=val1 var2=val2
+
+	! declare -p var &>/dev/null || t_fail
+
+	=: var1 var2 || t_fail
+
+	err=
+	=: var1 var 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+
+	err=
+	=: var var2 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+}
+
+test_ref_assign_illegal_name() {
+	local err var=Apex
+
+	declare -p var &>/dev/null || t_fail
+
+	err=
+	=: var:rt var 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+
+	err=
+	=: var 'var r' 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+}
+
+test_ref_assign_scalar_self() {
+	local var=qaz
+
+	[[ $var ]] || t_fail
+
+	=: var var || t_fail
+
+	[[ $var == qaz ]] || t_fail
+}
+
+test_ref_assign_array_self() {
+	local arr=(qaz 'al are' there)
+
+	[[ ${#arr[@]} -eq 3 ]] || t_fail
+
+	=: arr arr || t_fail
+
+	[[ ${arr[1]} == 'al are' && ${#arr[@]} -eq 3 ]] || t_fail
+}
+
+test_ref_assign_assoc_self() {
+	local -A ass=([can]=qaz [us]='al are' [nono]=there [no]=where)
+
+	[[ ${#ass[@]} -eq 4 ]] || t_fail
+
+	=: ass ass || t_fail
+
+	[[ ${ass[no]} == where && ${#ass[@]} -eq 4 ]] || t_fail
+}
+
+test_ref_assign_scalar_scalar() {
+	local var1=qaz
+	local var2=Toto
+
+	[[ $var1 != Toto ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ $var1 == Toto ]] || t_fail
+	[[ $var2 == Toto ]] || t_fail
+	[[ ! ${var1@a} ]] || t_fail
+}
+
+test_ref_assign_scalar_array() {
+	local var1=qaz
+	local var2=(abc def ghi)
+
+	[[ $var1 == qaz ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ $var1 == abc ]] || t_fail
+	[[ ${var2[2]} == ghi ]] || t_fail
+	[[ ! ${var1@a} ]] || t_fail
+}
+
+test_ref_assign_scalar_assoc() {
+	local var1=qaz
+	local -A var2=([kx]=abc [0]=Will [tata]=123)
+
+	[[ $var1 == qaz ]] || t_fail
+	[[ ${var2[tata]} == 123 ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ $var1 == Will ]] || t_fail
+	[[ ${var2[tata]} == 123 ]] || t_fail
+	[[ ! ${var1@a} ]] || t_fail
+}
+
+test_ref_assign_array_scalar() {
+	local var1=(ValA ValZ Val34 valed)
+	local var2=qwerty
+
+	[[ ${#var1[@]} -eq 4 ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ ${#var1[@]} -eq 1 ]] || t_fail
+	[[ ${var1@a} == *a* ]] || t_fail
+	[[ $var1 == qwerty ]] || t_fail
+	[[ $var1 == "$var2" ]] || t_fail
+	[[ ! ${var2@a} ]] || t_fail
+}
+
+test_ref_assign_array_array() {
+	local var1=(ValA ValZ Val34 valed)
+	local var2=(xyz 123 ABC)
+
+	[[ ${#var1[@]} -eq 4 ]] || t_fail
+	[[ ${#var2[@]} -eq 3 ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ ${#var1[@]} -eq 3 ]] || t_fail
+
+	[[ ${var1@a} == *a* ]] || t_fail
+
+	t_cmp var1 var2 || t_fail
+}
+
+test_ref_assign_array_assoc() {
+	local var1=(ValA ValZ Val34 valed)
+	local -A var2=([k1]=abc [5]=five [1]=one [k3]=val3 [k2]=xxx)
+
+	[[ ${#var1[@]} -eq 4 ]] || t_fail
+	[[ ${#var2[@]} -eq 5 ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ ${#var1[@]} -eq $((${#var2[@]}*2)) ]] || t_fail
+
+	[[ ${var1@a} == *a* ]] || t_fail
+
+	local -A ass
+
+	local i
+	for ((i=0; i<${#var1[@]}; i+=2)); do
+		ass[${var1[i]}]=${var1[i+1]}
+	done
+
+	[[ ${#ass[@]} -eq $((${#var1[@]}/2)) ]] || t_fail
+
+	t_cmp ass var2 || t_fail
+}
+
+test_ref_assign_assoc_scalar() {
+	local -A var1=([k1]=abc [5]=five [1]=one [k3]=val3 [k2]=xxx)
+	local var2=Toto
+
+	[[ ${#var1[@]} -eq 5 ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ ${#var1[@]} -eq 1 ]] || t_fail
+	[[ ${var1@a} == *A* ]] || t_fail
+	[[ $var1 == Toto ]] || t_fail
+	[[ $var1 == "$var2" ]] || t_fail
+	[[ ! ${var2@a} ]] || t_fail
+}
+
+test_ref_assign_assoc_array() {
+	local -A var1=([k1]=abc [5]=five [1]=one [k3]=val3 [k2]=xxx [ALL]='*')
+	local var2=(xyz 123 64 ABC _)
+
+	[[ ${#var1[@]} -eq 6 ]] || t_fail
+	[[ ${#var2[@]} -eq 5 ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ ${#var1[@]} -eq 3 ]] || t_fail
+	[[ ${var1@a} == *A* ]] || t_fail
+
+	local -A var3=([64]=ABC [_]= [xyz]=123)
+
+	t_cmp var1 var3 || t_fail
+}
+
+test_ref_assign_assoc_assoc() {
+	local -A var1=([k1]=abc [5]=five [1]=one [k3]=val3 [k2]=xxx [ALL]='*')
+	local -A var2=([Mountain]=grey [Trees]=green [Ocean]=blue [Fire]=red)
+
+	[[ ${#var1[@]} -eq 6 ]] || t_fail
+	[[ ${#var2[@]} -eq 4 ]] || t_fail
+
+	=: var1 var2 || t_fail
+
+	[[ ${#var1[@]} -eq 4 ]] || t_fail
+	[[ ${var1@a} == *A* ]] || t_fail
+	[[ ${var1[Ocean]} == blue ]] || t_fail
+
+	t_cmp var1 var2 || t_fail
+}
+
+test_ref_assign_member_assoc() {
+	local var=X
+	local -A ass=([can]=qaz [us]='al are' [nono]=there [no]=where)
+
+	=: var ass us || t_fail
+
+	[[ ${#ass[@]} -eq 4 ]] || t_fail
+	[[ $var == al\ are ]] || t_fail
+
+	=: var ass nono can || t_fail
+
+	[[ $var == there ]] || t_fail
+
+	=: var ass can 0 || t_fail
+
+	[[ $var == qaz ]] || t_fail
+
+	=: var ass can 1 || t_fail
+
+	[[ -z $var ]] || t_fail
+}
+
+test_ref_assign_member_array() {
+	local var=X
+	local arr=(can us 121 nono no)
+
+	=: var arr 3 || t_fail
+
+	[[ ${#arr[@]} -eq 5 ]] || t_fail
+	[[ $var == nono ]] || t_fail
+	[[ ! ${var@a} ]] || t_fail
+
+	=: var arr XxX || t_fail
+
+	[[ $var == can ]] || t_fail
+
+	=: var arr 3 1  || t_fail
+
+	[[ -z $var ]] || t_fail
+
+	=: var arr 3 0 1  || t_fail
+
+	[[ -z $var ]] || t_fail
+}
