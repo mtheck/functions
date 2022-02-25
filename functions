@@ -175,6 +175,20 @@ bool () {
 	return 3
 }
 
+version () {
+	[[ $# -ge 1 && $# -le 2 ]] || errorf || return
+
+	[[ $# -lt 2 ]] || valid_name "$2" || errorf "Illegal name '$2' for variable" || return
+
+	if [[ $1 =~ ^[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)(\.(0|[1-9]\d*))?(-((0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
+		if [[ $# -ge 2 ]]; then
+			eval $2='(${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[4]:-0}${BASH_REMATCH[6]:+-${BASH_REMATCH[6]}}${BASH_REMATCH[11]:++${BASH_REMATCH[11]}} ${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[4]:-0} "${BASH_REMATCH[6]}" "${BASH_REMATCH[11]}")'
+		fi
+		return 0
+	fi
+	return 1
+}
+
 color () {
 	[[ $# -eq 1 ]] || errorf || return
 
@@ -272,15 +286,15 @@ echoc () {
 		if [[ $1 == @* ]] && { [[ ! $spec ]] || colorc "$spec"; }; then
 			[[ $spec ]] && code=$COLORC
 			[[ $1 == @:* ]] && base=$code
-			[[ $1 == *@ ]] && space=_ || space=
+			[[ $1 == *@ ]] && space=- || [[ $space == - ]] || space=
 		else
 			if [[ ! $out ]]; then
 				if [[ $color ]]; then
 					out+=$'\e'[0m
 					[[ $base ]] && out+=$base
 				fi
-			else
-				[[ $space ]] && out+=' '
+			elif [[ $space ]]; then
+				out+=' '
 			fi
 
 			if [[ $code ]]; then
@@ -510,6 +524,18 @@ valid_bool () {
 	[[ $# -eq 1 ]] || errorf || return
 
 	bool "$1" || [[ $? -ne 3 ]]
+}
+
+valid_version () {
+	[[ $# -eq 1 ]] || errorf || return
+
+	version "$1"
+}
+
+valid_semver () {
+	[[ $# -eq 1 ]] || errorf || return
+
+	version "$1" && [[ ${BASH_REMATCH[4]} && $1 == [[:digit:]]* ]]
 }
 
 require_command () {
@@ -1270,19 +1296,27 @@ tmp_dir () {
 ephemeral_port () {
     [[ $# -eq 0 ]] || errorf || return
 
-    require_command nc
+    is_command nc || errorf "No netcat command found" || return
 
     local port
 
-    coproc:run __ephemeral_port__ 'nc -lv 127.0.0.1 0 2>&1' || return
+    coproc:run __ephemeral_port__ 'nc -ldnv 127.0.0.1 0 2>&1 >&- <&-' || return
+
+	_trace && trace "Reading ephemeral port from netcat output"
 
     if coproc:read_line __ephemeral_port__; then
-		port=${COPROC_DATA##*[![:digit:]]}
+		port=$COPROC_DATA
+
+		_trace && trace "Output from netcat: $port"
+
+		port=${port##*[![:digit:]]}
     fi
 
 	coproc:kill __ephemeral_port__ || :
 
 	[[ $port && $port != *[![:digit:]]* ]] || return
+
+	_trace && trace "Obtained ephemeral port: $port"
 
     EPHEMERAL_PORT=$port
 }
