@@ -9,7 +9,11 @@ function t_fail {
 
 	[[ $rc -eq 1 ]] || t_error Unexpected test return code: $rc
 
-	t_log "$BASH_LINENO:$(sed -n ${BASH_LINENO}p "$BASH_SOURCE")"
+	local loc=${BASH_SOURCE[1]}@$BASH_LINENO
+
+	[[ -t 1 ]] && loc=$'\e[4m'$loc$'\e[0m'
+
+	t_log "$loc:$(sed -n ${BASH_LINENO}p "${BASH_SOURCE[1]}")"
 
 	exit 1
 }
@@ -100,8 +104,8 @@ function t {
 			time (
 				for ((i=0; i<COUNT; i++)); do
 					$fct
-				done
-			) &>/dev/null || err=_
+				done &>/dev/null
+			) || err=_
 		fi
 
 		if [[ $err ]]; then

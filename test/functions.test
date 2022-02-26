@@ -2,6 +2,72 @@
 
 . ../functions
 
+## version
+
+test_version() {
+	local v versions=(
+		1.0.0-alpha
+		1.0.0-alpha.1
+		1.0.0-alpha.beta
+		1.0.0-beta
+		1.0.0-beta.2
+		1.0.0-beta.11
+		1.0.0-rc.1
+		1.0.0
+	)
+
+	for v in "${versions[@]}"; do
+		version "$v" || t_fail
+	done
+}
+
+test_vcmp_args() {
+	vcmp 3@.5 3.5.0 2>/dev/null && t_fail
+	[[ $? -eq 2 ]] || t_fail
+
+	vcmp 3.5 3..5.0 2>/dev/null && t_fail
+	[[ $? -eq 2 ]] || t_fail
+
+	vcmp 3.5 3.5.0 1.2.3 2>/dev/null && t_fail
+	[[ $? -eq 2 ]] || t_fail
+
+	vcmp 3.5 2>/dev/null && t_fail
+	[[ $? -eq 2 ]] || t_fail
+
+	vcmp 2>/dev/null && t_fail
+	[[ $? -eq 2 ]] || t_fail
+}
+
+test_vcmp_order() {
+	local i v1 v2 versions=(
+		1.0.0-alpha
+		1.0.0-alpha.1
+		1.0.0-alpha.beta
+		1.0.0-beta
+		1.0.0-beta.7
+		1.0.0-beta.46
+		1.0.0-beta.22c
+		1.0.0-beta.22c.z0
+		1.0.0-rc.1
+		1.0.0
+		3.5-a
+		3.5+x64
+		v3.5.1
+		v3.7.1-rc.0
+		10.0.0
+		100.10.1
+	)
+
+	for ((i=1; i<${#versions[@]}; i++)); do
+		vcmp "${versions[i-1]}" "${versions[i]}" && t_fail
+		[[ $? -eq 1 ]] || t_fail
+	done
+
+	vcmp v3.5 3.5.0 || t_fail
+}
+
+## variable operators
+
 test_value_assign_undeclared() {
 	! declare -p var &>/dev/null || t_fail
 

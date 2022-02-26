@@ -178,15 +178,20 @@ bool () {
 version () {
 	[[ $# -ge 1 && $# -le 2 ]] || errorf || return
 
-	[[ $# -lt 2 ]] || valid_name "$2" || errorf "Illegal name '$2' for variable" || return
+	[[ $# -lt 2 ]] || valid_name "$2" || errorf "Illegal variable name: $2" || return
 
-	if [[ $1 =~ ^[vV]?(0|[1-9]\d*)\.(0|[1-9]\d*)(\.(0|[1-9]\d*))?(-((0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
+	if [[ $1 =~ ^[vV]?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$ ]]; then
 		if [[ $# -ge 2 ]]; then
-			eval $2='(${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[4]:-0}${BASH_REMATCH[6]:+-${BASH_REMATCH[6]}}${BASH_REMATCH[11]:++${BASH_REMATCH[11]}} ${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[4]:-0} "${BASH_REMATCH[6]}" "${BASH_REMATCH[11]}")'
+			eval $2='(${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[4]:-0}${BASH_REMATCH[6]:+-${BASH_REMATCH[6]}}${BASH_REMATCH[11]:++${BASH_REMATCH[11]}} ${BASH_REMATCH[1]} ${BASH_REMATCH[2]} ${BASH_REMATCH[4]:-0} "${BASH_REMATCH[6]}" "${BASH_REMATCH[11]}")' \
+				|| return 2
 		fi
 		return 0
 	fi
 	return 1
+}
+
+semver () {
+	version "$@" && [[ ${BASH_REMATCH[4]} && $1 == [0-9]* ]]
 }
 
 color () {
@@ -535,7 +540,7 @@ valid_version () {
 valid_semver () {
 	[[ $# -eq 1 ]] || errorf || return
 
-	version "$1" && [[ ${BASH_REMATCH[4]} && $1 == [[:digit:]]* ]]
+	semver "$1"
 }
 
 require_command () {
@@ -620,6 +625,75 @@ push () {
 	eval $_x_arr='("${'_x_out'[@]}")'
 }
 
+ncmp () {
+	[[ $# -eq 2 ]] || errorf || return
+
+	[[ $1 -lt $2 ]] && return 1
+	[[ $1 -gt $2 ]] && return 3
+	return 0
+}
+
+scmp () {
+	[[ $# -eq 2 ]] || errorf || return
+
+	[[ $1 < $2 ]] && return 1
+	[[ $1 > $2 ]] && return 3
+	return 0
+}
+
+vcmp () {
+	[[ $# -eq 2 ]] || errorf || return
+
+	local -a v1 v2
+
+	version "$1" v1 || errorf "Invalid version: $1" || return
+	version "$2" v2 || errorf "Invalid version: $2" || return
+
+	ncmp ${v1[1]} ${v2[1]} || return
+	ncmp ${v1[2]} ${v2[2]} || return
+	ncmp ${v1[3]} ${v2[3]} || return
+
+	if [[ ! ${v1[4]} ]]; then
+		if [[ ! ${v2[4]} ]]; then
+			return 0
+		else
+			return 3
+		fi
+	else
+		return 1
+	fi
+
+	local p1=${v1[4]} p2=${v2[4]} r1 r2
+
+	while :; do
+		r1=${p1%%.*} r2=${p2%%.*}
+
+		if [[ $r1 ]]; then
+			if [[ $r2 ]]; then
+				if [[ $r1 != *[!0-9]* ]]; then
+					if [[ $r2 != *[!0-9]* ]]; then
+						ncmp $r1 $r2 || return
+					else
+						return 1
+					fi
+				elif [[ $r2 != *[!0-9]* ]]; then
+					return 3
+				else
+					scmp $r1 $r2 || return
+				fi
+			else
+				return 3
+			fi
+		elif [[ $r2 ]]; then
+			return 1
+		else
+			return 0
+		fi
+
+		p1=${p1:${#r1}+1} p2=${p2:${#r2}+1}
+	done
+}
+
 -a () { [[ $# -eq 1 ]] || errorf || return; [[ -a $1 ]]; }
 -b () { [[ $# -eq 1 ]] || errorf || return; [[ -b $1 ]]; }
 -c () { [[ $# -eq 1 ]] || errorf || return; [[ -c $1 ]]; }
@@ -664,6 +738,13 @@ _lt:[?--] () { [[ $1 < $2 ]]; }
 _le:[?--] () { [[ $1 < $2 ]] || [[ $1 == "$2" ]]; }
 _gt:[?--] () { [[ $1 > $2 ]]; }
 _ge:[?--] () { [[ $1 > $2 ]] || [[ $1 == "$2" ]]; }
+
+_veq:[?--] () { vcmp "$1" "$2"; }
+_vne:[?--] () { ! vcmp "$1" "$2"; }
+_vlt:[?--] () { vcmp "$1" "$2" && return 1 || [[ $? -eq 1 ]]; }
+_vle:[?--] () { vcmp "$1" "$2" || [[ $? -eq 1 ]]; }
+_vgt:[?--] () { vcmp "$1" "$2" && return 1 || [[ $? -eq 3 ]]; }
+_vge:[?--] () { vcmp "$1" "$2" || [[ $? -eq 3 ]]; }
 
 _pe:[?--] () { [[ $1 == $2 ]]; }
 _pn:[?--] () { [[ $1 != $2 ]]; }
@@ -1003,7 +1084,7 @@ duration:[--] () {
 	local _x_num _x_unit _x_factor
 
 	while [[ $_x_duration ]]; do
-		_x_num=${_x_duration%%[!0-9]*}
+		_x_num=${_x_duration%%[![:digit:]]*}
 
 		[[ $_x_num ]] || return 1
 
@@ -2108,7 +2189,7 @@ __s () {
 
 __f () {
 	while [[ $# -gt 0 ]]; do
-		valid_field "$1" || errorf "Illegal name '$1' for field" || return; shift
+		valid_field "$1" || errorf "Illegal field name: $1" || return; shift
 	done
 }
 
@@ -2117,12 +2198,12 @@ __v () {
 		if ! is_declared "$1"; then
 			[[ $1 ]] || errorf "Missing variable name" || return
 
-			valid_name "$1" || errorf "Illegal name '$1' for variable" || return
+			valid_name "$1" || errorf "Illegal variable name: $1" || return
 
-			errorf "Variable '$1' not declared" || return
+			errorf "Variable not declared: $1" || return
 		fi
 
-		[[ $1 != _x_* || $1 == *_ ]] || errorf "Conflicting name '$1' for variable" || return
+		[[ $1 != _x_* || $1 == *_ ]] || errorf "Conflicting variable name: $1" || return
 
 		shift
 	done
@@ -2154,7 +2235,7 @@ __caller_ () {
 }
 
 __functions () {
-	local args fct name proto out_ini out_val in_ini in_set in_val
+	local args fct name proto i out_ini out_val in_ini in_set in_val
 
 	while read -r -a args; do
 		fct=${args[-1]}
@@ -2163,36 +2244,35 @@ __functions () {
 
 		name=${BASH_REMATCH[1]} proto=${BASH_REMATCH[2]}
 
-		case ${proto:0:1} in
-		-)
-			out_ini=
-			out_val=\$_x_var_
-			;;
-		@)
-			out_ini='()'
-			out_val=\${_x_var_[*]}
-			;;
-		*)
-			_debug && warn "Invalid function prototype output argument: $fct"
-			continue
-			;;
-		esac
-		case ${proto:1:1} in
-		-)
-			in_ini=
-			in_set='\$$_x_var_'
-			in_val=\$_x_val_
-			;;
-		@)
-			in_ini='()'
-			in_set=\''("${'\'\$_x_var_\''[@]}")'\'
-			in_val=_x_val_
-			;;
-		*)
-			_debug && warn "Invalid function prototype input argument: $fct" ;;
-		esac
+		for ((i=0; i<${#proto}; i++)); do
+			case ${proto:i:1} in
+			-)
+				if [[ $i -eq 0 ]]; then
+					out_ini=
+					out_val=\$_x_var_
+				elif [[ $i -eq 1 ]]; then
+					in_ini=
+					in_set='\$$_x_var_'
+					in_val=\$_x_val_
+				fi
+				;;
+			@)
+				if [[ $i -eq 0 ]]; then
+					out_ini='()'
+					out_val=\${_x_var_[*]}
+				elif [[ $i -eq 1 ]]; then
+					in_ini='()'
+					in_set=\''("${'\'\$_x_var_\''[@]}")'\'
+					in_val=_x_val_
+				fi
+				;;
+			*)
+				_debug && warn "Invalid function prototype: $fct"
 
-		_debug && [[ ${#proto} -gt 2 ]] && warn "Invalid function prototype arguments: $fct"
+				continue 2
+				;;
+			esac
+		done
 
 		eval '
 			'"$name"':__ () {
