@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+FUNCTIONS_STRICT=
+
 . ../functions
 
 ## version
@@ -68,7 +70,17 @@ test_vcmp_order() {
 
 ## variable operators
 
-test_value_assign_undeclared() {
+test_value_assign_illegal_name() {
+	local err
+
+	= var:rt abcD 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+}
+
+test_value_assign_undeclared_strict() {
+	local FUNCTIONS_STRICT=1
+
 	! declare -p var &>/dev/null || t_fail
 
 	local err
@@ -76,14 +88,26 @@ test_value_assign_undeclared() {
 	= var abcD 2>/dev/null || err=$?
 
 	[[ $err -eq 2 ]] || t_fail
+
 }
 
-test_value_assign_illegal_name() {
-	local err
+test_value_assign_undeclared_scalar() {
+	! declare -p var &>/dev/null || t_fail
 
-	= var:rt abcD 2>/dev/null || err=$?
+	= var abcD 2>/dev/null || t_fail
 
-	[[ $err -eq 2 ]] || t_fail
+	[[ ! ${var@a} ]] || t_fail
+	[[ $var == abcD ]] || t_fail
+}
+
+test_value_assign_undeclared_array() {
+	! declare -p var &>/dev/null || t_fail
+
+	= var abcD Efgh 2>/dev/null || t_fail
+
+	[[ ${var@a} == *a* ]] || t_fail
+	[[ ${#var[@]} -eq 2 ]] || t_fail
+	[[ ${var[1]} == Efgh ]] || t_fail
 }
 
 test_value_assign_scalar() {
@@ -136,7 +160,25 @@ test_value_assign_assoc() {
 	[[ ! ${var[k2]} ]] || t_fail
 }
 
-test_ref_assign_undeclared() {
+test_ref_assign_illegal_name() {
+	local err var=Apex
+
+	declare -p var &>/dev/null || t_fail
+
+	err=
+	=: var:rt var 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+
+	err=
+	=: var 'var r' 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+}
+
+test_ref_assign_undeclared_strict() {
+	local FUNCTIONS_STRICT=1
+
 	local err var1=val1 var2=val2
 
 	! declare -p var &>/dev/null || t_fail
@@ -154,20 +196,38 @@ test_ref_assign_undeclared() {
 	[[ $err -eq 2 ]] || t_fail
 }
 
-test_ref_assign_illegal_name() {
-	local err var=Apex
+test_ref_assign_undeclared_scalar() {
+	local var2=val2
 
-	declare -p var &>/dev/null || t_fail
+	! declare -p var &>/dev/null || t_fail
 
-	err=
-	=: var:rt var 2>/dev/null || err=$?
+	=: var var2 || t_fail
 
-	[[ $err -eq 2 ]] || t_fail
+	[[ ! ${var@a} ]] || t_fail
+	[[ $var == val2 ]] || t_fail
+}
 
-	err=
-	=: var 'var r' 2>/dev/null || err=$?
+test_ref_assign_undeclared_array() {
+	local var2=(val2)
 
-	[[ $err -eq 2 ]] || t_fail
+	! declare -p var &>/dev/null || t_fail
+
+	=: var var2 || t_fail
+
+	[[ ${var@a} == *a* ]] || t_fail
+	[[ ${#var[@]} -eq 1 ]] || t_fail
+	[[ ${var[0]} == val2 ]] || t_fail
+}
+
+test_ref_assign_undeclared_assoc() {
+	local -A var2=([key1]=val1 [0]=first [data]=00101011)
+
+	! declare -p var &>/dev/null || t_fail
+
+	=: var var2 || t_fail
+
+	[[ ${var@a} == *a* ]] || t_fail
+	[[ ${#var[@]} -eq 6 ]] || t_fail
 }
 
 test_ref_assign_scalar_self() {

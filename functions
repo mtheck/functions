@@ -4,7 +4,7 @@
 
 shopt -qo posix && return 126
 
-readonly __functions=$BASH_SOURCE
+declare FUNCTIONS_STRICT
 
 declare -r LOG_LEVEL_NONE=_
 declare -ri LOG_LEVEL_ERROR=0
@@ -1861,7 +1861,11 @@ _var () {
 = () {
 	{}= "$@" && return || [[ $? -eq 3 ]] || return 2
 
-	case ${!1@a} in
+	local _x_a=${!1@a}
+
+	is_declared $1 || [[ $# -lt 3 ]] || _x_a=a
+
+	case $_x_a in
 	*a*)
 		local _x_v=$1; shift; eval $_x_v='("$@")' ;;
 	*A*)
@@ -1877,45 +1881,21 @@ _var () {
 	local _x_v=$1 _x_a=${!1@a} _x_v2=$2 _x_a2=${!2@a}; shift 2
 
 	if [[ $# -gt 0 ]]; then
-		__f "$@" || return
+		local _x_m_tv_; local -A _x_m_ts_
 
-		local _x_f _x_k _x_ks=() _x_vt _x_vt_i _x_vt_s1_ _x_vt_s2_; local -A _x_vt_a1_ _x_vt_a2_
-
-		while [[ $# -gt 0 ]]; do
-			[[ $_x_vt_i != 1 ]] && _x_vt_i=1 || _x_vt_i=2
-
-			if __s $_x_v2 _x_a2 && [[ $_x_a2 == *[aA]* ]] && { _x_f=$1\|; eval _x_a2='${'$_x_v2'[$_x_f]}'; [[ $_x_a2 == *[aA]* ]]; }; then
-				_x_vt=_x_vt_a${_x_vt_i}_
-
-				{} $_x_vt:"$_x_a2"
-
-				eval _x_ks='("${!'$_x_v2'[@]}")'
-
-				for _x_k in "${_x_ks[@]}"; do
-					[[ $_x_k == "$_x_f"?* ]] || continue
-
-					eval $_x_vt'[${_x_k:${#_x_f}}]'='${'$_x_v2'[$_x_k]}'
-				done
-			else
-				_x_vt=_x_vt_s${_x_vt_i}_
-
-				eval $_x_vt='${'$_x_v2'[$1]}'
-			fi
-
-			_x_v2=$_x_vt; shift
-		done
-
-		_x_a2=${!_x_v2@a}
+		__m $_x_v2 _x_v2 _x_a2 _x_m_tv_ _x_m_ts_ "$@" || return
 	fi
 
 	[[ $_x_v == $_x_v2 ]] && return
 
+	is_declared $_x_v || [[ $_x_a2 != *[aA]* ]] || _x_a=a
+
 	case $_x_a in
 	*a*)
 		if [[ $_x_a2 == *A* ]]; then
-			local _x_k _x_ks=()
+			local _x_s _x_k _x_ks=()
 
-			if __s $_x_v2 _x_vt; then
+			if __s $_x_v2 _x_s; then
 				eval $_x_v='()'; {}=^# _x_ks $_x_v2
 			else
 				eval $_x_v='()' _x_ks='("${!'$_x_v2'[@]}")'
@@ -1985,6 +1965,22 @@ _var () {
 }
 
 =#: () {
+	{}=#: "$@" && return || [[ $? -eq 3 ]] || return 2
+
+	local _x_v=$1 _x_a=${!1@a} _x_f=$2 _x_v2=$3 _x_a2=${!3@a}; shift 3 || :
+
+	if [[ $# -gt 0 ]]; then
+		local _x_m_tv_; local -A _x_m_ts_
+
+		__m $_x_v2 _x_v2 _x_a2 _x_m_tv_ _x_m_ts_ "$@" || return
+	fi
+
+	if [[ ! $_x_v2 ]]; then
+		errorf
+	fi
+
+	[[ $_x_v != $_x_v2 ]] || errorf
+
 	errorf
 }
 
@@ -2097,6 +2093,16 @@ _var () {
 
 	local _x_v=$1 _x_a; __s $1 _x_a || return
 
+	local _x_v2=$2 _x_a2=${!2@a}; shift 2
+
+	if [[ $# -gt 0 ]]; then
+		local _x_m_tv_; local -A _x_m_ts_
+
+		__m $_x_v2 _x_v2 _x_a2 _x_m_tv_ _x_m_ts_ "$@" || return
+	fi
+
+	[[ $_x_v == $_x_v2 ]] && return
+
 	errorf
 }
 
@@ -2106,6 +2112,32 @@ _var () {
 	__v "$1" "$3" && __f "$2" || return
 
 	local _x_v=$1 _x_a; __s $1 _x_a || return
+
+	errorf
+}
+
+{}=#: () {
+	[[ $# -ge 2 ]] || errorf || return
+
+	__v "$1" && __f "$2" || return
+
+	[[ $# -lt 3 ]] || __v "$3" || return
+
+	local _x_v=$1 _x_a; __s $1 _x_a || return
+
+	local _x_f=$2 _x_v2=$3 _x_a2=${!3@a}; shift 3 || :
+
+	if [[ $# -gt 0 ]]; then
+		local _x_m_tv_; local -A _x_m_ts_
+
+		__m $_x_v2 _x_v2 _x_a2 _x_m_tv_ _x_m_ts_ "$@" || return
+	fi
+
+	if [[ ! $_x_v2 ]]; then
+		errorf
+	fi
+
+	[[ $_x_v != $_x_v2 ]] || errorf
 
 	errorf
 }
@@ -2183,6 +2215,42 @@ _var () {
 	errorf
 }
 
+__m () {
+	local -n _x__rv=$2 _x__ra=$3; local _x__t=$1 _x__v=$2 _x__a=$3 _x__tv=$4 _x__ts=$5; shift 5
+
+	__f "$@" || return
+
+	local _x__f _x__k _x__ks=(); local -A _x__s
+
+	while [[ $# -gt 0 ]]; do
+		if __s $_x__t _x__a && [[ $_x__a == *[aA]* ]] && { _x__f=$1\|; eval _x__a='${'$_x__r'[$_x__f]}'; [[ $_x__a == *[aA]* ]]; }; then
+			{} _x__s:"$_x__a"
+
+			eval _x__ks='("${!'$_x__t'[@]}")'
+
+			for _x__k in "${_x__ks[@]}"; do
+				[[ $_x__k == "$_x__f"?* ]] || continue
+
+				eval _x__s'[${_x__k:${#_x__f}}]'='${'$_x__t'[$_x__k]}'
+			done
+
+			eval _x__f='${_x__s[@]@A}'
+
+			eval $_x__ts="${_x__f#*=}"
+
+			_x__t=$_x__ts
+		else
+			eval $_x__tv='${'$_x__t'[$1]}'
+
+			_x__t=$_x__tv
+		fi
+
+		shift
+	done
+
+	_x__rv=$_x__t _x__ra=${!_x__t@a}
+}
+
 __s () {
 	[[ ${!1@a} == *A* ]] && eval $2='${'$1'[|]}' &&	[[ ${!2} ]] || return 3
 }
@@ -2200,10 +2268,12 @@ __v () {
 
 			valid_name "$1" || errorf "Illegal variable name: $1" || return
 
-			errorf "Variable not declared: $1" || return
+			! bool "$FUNCTIONS_STRICT" || errorf "Variable not declared: $1" || return
+
+			_trace && trace "Variable not declared: $1"
 		fi
 
-		[[ $1 != _x_* || $1 == *_ ]] || errorf "Conflicting variable name: $1" || return
+		[[ $1 != _x_?* || $1 == *_ ]] || errorf "Conflicting variable name: $1" || return
 
 		shift
 	done

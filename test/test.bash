@@ -5,10 +5,6 @@ function t_error { t_log Error: "$@"; exit 1; }
 function t_log { echo ">>> TEST $*"; } >&2
 
 function t_fail { 
-	local rc=$?
-
-	[[ $rc -eq 1 ]] || t_error Unexpected test return code: $rc
-
 	local loc=${BASH_SOURCE[1]}@$BASH_LINENO
 
 	[[ -t 1 ]] && loc=$'\e[4m'$loc$'\e[0m'
