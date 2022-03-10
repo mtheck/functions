@@ -1533,7 +1533,7 @@ coproc:read_field () {
 
 	__=_ @: _x_v__ "$@" || return
 
-	output _x_v__
+	output: _x_v__
 }
 
 @- () {
@@ -1541,7 +1541,7 @@ coproc:read_field () {
 
 	__=- @: _x_v__ "$@" || return
 
-	output _x_v__
+	output: _x_v__
 }
 
 @@ () {
@@ -1549,7 +1549,7 @@ coproc:read_field () {
 
 	__=@ @: _x_v__ "$@" || return
 
-	output _x_v__
+	output: _x_v__
 }
 
 -@ () {
@@ -1558,7 +1558,7 @@ coproc:read_field () {
 	while IFS= read -r _x_v__; do
 		__=- @: _x_v__ "$_x_v__" "$@" || return
 
-		output _x_v__
+		output: _x_v__
 	done
 }
 
@@ -1569,7 +1569,7 @@ coproc:read_field () {
 
 	__=@ @: _x_v__ _x_v__ "$@" || return
 
-	output _x_v__
+	output: _x_v__
 }
 
 -@@: () {
@@ -1769,6 +1769,14 @@ input () {
 }
 
 output () {
+	local values
+
+	= values "$@"
+
+	output: values
+}
+
+output: () {
 	__v "$@" || return
 
 	local IFS=$'\n'
@@ -2330,7 +2338,7 @@ __functions () {
 				i_argn=0 i_argv= i_vdecl= i_vshift=
 
 				if [[ $proto != '?'* ]]; then
-					i_tdecl=_x_t_ i_oarg=_x_t_ i_end='output _x_t_'
+					i_tdecl=_x_t_ i_oarg=_x_t_ i_end='output: _x_t_'
 				fi
 				;;
 			esac
