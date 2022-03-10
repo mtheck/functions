@@ -16,13 +16,12 @@ declare -ri LOG_LEVEL_TRACE=5
 
 declare -x LOG_{LEVEL,PREFIX,DATE,DATE_FORMAT,SOURCE,JSON,FILE}
 
-_error () { log -$LOG_LEVEL_ERROR; }
-_warn  () { log -$LOG_LEVEL_WARNING; }
-_note  () { log -$LOG_LEVEL_NOTE; }
-_msg   () { log -$LOG_LEVEL_INFO; }
-_info  () { log -$LOG_LEVEL_INFO; }
-_debug () { log -$LOG_LEVEL_DEBUG; }
-_trace () { log -$LOG_LEVEL_TRACE; }
+_error   () { log -$LOG_LEVEL_ERROR; }
+_warning () { log -$LOG_LEVEL_WARNING; }
+_note    () { log -$LOG_LEVEL_NOTE; }
+_info    () { log -$LOG_LEVEL_INFO; }
+_debug   () { log -$LOG_LEVEL_DEBUG; }
+_trace   () { log -$LOG_LEVEL_TRACE; }
 
 error () { log $LOG_LEVEL_ERROR "$@"; exit 1; }
 warn  () { log $LOG_LEVEL_WARNING "$@"; }
@@ -146,7 +145,7 @@ is_function () {
 is_command () {
 	[[ $# -eq 1 ]] || errorf || return
 
-	[[ $(type -P "$1") ]]
+	type -P "$1" >/dev/null
 }
 
 is_exec () {
@@ -598,7 +597,7 @@ concat () {
 push () {
 	[[ $# -ge 2 && $# -le 3 ]] || errorf || return
 
-	local _x_arr=$1 _x_str=$2 _x_delim=$3 && _var "$1" || return
+	local _x_arr=$1 _x_str=$2 _x_delim=$3 && __v "$1" || return
 
 	! _debug || is_array "$_x_arr" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -754,17 +753,15 @@ _rn:[?--] () { [[ ! $1 =~ $2 ]]; }
 _true:[?-] () { bool "$1"; }
 _false:[?-] () { bool "$1" && return 1; [[ $? -eq 1 ]] && return 0; return 2; }
 
-add:[---] () { output $(($1+$2)); }
-sub:[---] () { output $(($1-$2)); }
-mul:[---] () { output $(($1*$2)); }
-div:[---] () { output $(($1/$2)); }
-mod:[---] () { output $(($1%$2)); }
-exp:[---] () { output $(($1**$2)); }
+add:[---] () { = $1 $(($2+$3)); }
+sub:[---] () { = $1 $(($2-$3)); }
+mul:[---] () { = $1 $(($2*$3)); }
+div:[---] () { = $1 $(($2/$3)); }
+mod:[---] () { = $1 $(($2%$3)); }
+exp:[---] () { = $1 $(($2**$3)); }
 
 len:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
-
-	_var "$1" || return
 
 	= $1 ${#2}
 }
@@ -772,7 +769,7 @@ len:[--] () {
 count:[-@] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -782,7 +779,7 @@ count:[-@] () {
 index:[-@] () {
 	[[ $# -ge 2 && $# -le 3 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -794,7 +791,7 @@ index:[-@] () {
 total:[-@] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -812,7 +809,7 @@ total:[-@] () {
 min:[-@] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -830,7 +827,7 @@ min:[-@] () {
 max:[-@] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -848,7 +845,7 @@ max:[-@] () {
 avg:[-@] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	! _debug || is_array "$2" || [[ $? -eq 1 ]] || warnf "Variable is not an array"
 
@@ -868,15 +865,11 @@ avg:[-@] () {
 quote:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" || return
-
 	eval $1='${2@Q}'
 }
 
 jquote:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
-
-	_var "$1" || return
 
 	local _x_str=${2//\\/\\\\}
 
@@ -887,8 +880,6 @@ jquote:[--] () {
 
 pad:[--] () {
 	[[ $# -ge 3 && $# -le 4 ]] || errorf || return
-
-	_var "$1" || return
 
 	local _x_str=$2 _x_len=$3 _x_pad=$4
 
@@ -923,7 +914,7 @@ trimr:[--] () {
 _trim () {
 	[[ $# -ge 3 && $# -le 4 ]] || errorf || return
 
-	_var "$2" || return
+	__v "$2" || return
 
 	local _x_side=$1 _x_var=$2 _x_str=$3 _x_chars=$4
 
@@ -955,15 +946,11 @@ _trim () {
 upper:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" || return
-
 	= $1 "${2^^}"
 }
 
 lower:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
-
-	_var "$1" || return
 
 	= $1 "${2,,}"
 }
@@ -971,23 +958,17 @@ lower:[--] () {
 upperf:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" || return
-
 	= $1 "${2^}"
 }
 
 lowerf:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" || return
-
 	= $1 "${2,}"
 }
 
 file_dir:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
-
-	_var "$1" || return
 
 	local _x_file=$2 _x_root
 
@@ -1017,8 +998,6 @@ file_dir:[--] () {
 file_name:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" || return
-
 	local _x_file=$2 _x_root
 
 	while [[ $_x_file == */ ]]; do
@@ -1041,8 +1020,6 @@ file_name:[--] () {
 file_base:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" || return
-
 	local _x_file_=$2
 
 	file_name: _x_file_ "$_x_file_"
@@ -1055,8 +1032,6 @@ file_base:[--] () {
 file_ext:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" || return
-
 	local _x_file_=$2
 
 	file_name: _x_file_ "$_x_file_"
@@ -1068,8 +1043,6 @@ file_ext:[--] () {
 
 duration:[--] () {
 	[[ $# -eq 2 ]] || errorf || return
-
-	_var "$1" || return
 
 	local _x_duration=$2
 
@@ -1107,7 +1080,7 @@ duration:[--] () {
 filter:[@@] () {
 	[[ $# -ge 4 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	local _x_var=$1 _x_arr=$2 _x_op=$3 _x_type=_ _x_filter=$4; shift 4
 
@@ -1190,7 +1163,7 @@ filter:[@@] () {
 map:[@@] () {
 	[[ $# -ge 3 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	local _x_var=$1 _x_arr=$2 _x_exec=$3; shift 3
 
@@ -1227,7 +1200,7 @@ map:[@@] () {
 		fi
 
 		if [[ $_x_pipe ]]; then
-			${_x_exec}: _x_elem_ "${_x_args[@]}"
+			$_x_exec: _x_elem_ "${_x_args[@]}"
 		else
 			_x_elem_=$($_x_exec "${_x_args[@]}") || return $?
 		fi
@@ -1240,8 +1213,6 @@ map:[@@] () {
 
 sep:[@-] () {
 	[[ $# -ge 2 && $# -le 5 ]] || errorf || return
-
-	_var "$1" || return
 
 	local _x_str=$2 _x_regex=$3 _x_limit=0 _x_keep=
 
@@ -1295,7 +1266,7 @@ sep:[@-] () {
 tie:[-@] () {
 	[[ $# -ge 2 && $# -le 3 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	local _x_sep=$3
 
@@ -1316,7 +1287,7 @@ tie:[-@] () {
 reverse:[@@] () {
 	[[ $# -eq 2 ]] || errorf || return
 
-	_var "$1" && _var "$2" || return
+	__v "$2" || return
 
 	if _debug; then
 		is_array "$1" || [[ $? -eq 1 ]] || warnf "Output variable is not an array"
@@ -1381,7 +1352,7 @@ ephemeral_port () {
 
     local port
 
-    coproc:run __ephemeral_port__ 'nc -ldnv 127.0.0.1 0 2>&1 >&- <&-' || return
+    coproc:run __ephemeral_port__ 'nc -ldnv 127.0.0.1 0 2>&1' || return
 
 	_trace && trace "Reading ephemeral port from netcat output"
 
@@ -1522,7 +1493,7 @@ coproc:write () {
 	fi
 
 	while [[ $# -gt 0 ]]; do
-		echo -n "$1" >&$fd
+		echo -n "$1" >&$fd || return
 		shift
 	done
 }
@@ -1558,67 +1529,55 @@ coproc:read_field () {
 }
 
 @ () {
-	local _x_var__
+	local _x_v__
 
-	__=_ @: _x_var__ "$@"
+	__=_ @: _x_v__ "$@" || return
 
-	local IFS=$'\n'
-
-	echo "${_x_var__[*]}"
+	output _x_v__
 }
 
 @- () {
-	local _x_var__
+	local _x_v__
 
-	__=- @: _x_var__ "$@"
+	__=- @: _x_v__ "$@" || return
 
-	local IFS=$'\n'
-
-	echo "${_x_var__[*]}"
+	output _x_v__
 }
 
 @@ () {
-	local _x_var__
+	local _x_v__
 
-	__=@ @: _x_var__ "$@"
+	__=@ @: _x_v__ "$@" || return
 
-	local IFS=$'\n'
-
-	echo "${_x_var__[*]}"
+	output _x_v__
 }
 
 -@ () {
-	local _x_var__ _x_ifs IFS=$IFS
+	local _x_v__
 
-	while IFS= read -r _x_var__; do
-		__=- @: _x_var__ "$_x_var__" "$@"
+	while IFS= read -r _x_v__; do
+		__=- @: _x_v__ "$_x_v__" "$@" || return
 
-		_x_ifs=$IFS IFS=$'\n'
-
-		echo "${_x_var__[*]}"
-
-		IFS=$_x_ifs
+		output _x_v__
 	done
 }
 
 -@@ () {
-	local _x_var__
+	local _x_v__
 
-	readarray -t _x_var__
+	readarray -t _x_v__ || return
 
-	__=@ @: _x_var__ _x_var__ "$@"
+	__=@ @: _x_v__ _x_v__ "$@" || return
 
-	local IFS=$'\n'
-
-	echo "${_x_var__[*]}"
+	output _x_v__
 }
 
 -@@: () {
-	local _x_var=$1 _x_var__; shift || errorf || return
+	local _x_v=$1 _x_v__; shift || errorf || return
 
-	readarray -t _x_var__
+	readarray -t _x_v__ || return
 
-	__=@ @: "$_x_var" _x_var__ "$@"
+	__=@ @: "$_x_v" _x_v__ "$@"
 }
 
 @@: () {
@@ -1632,11 +1591,9 @@ coproc:read_field () {
 @: () {
 	[[ $# -ge 3 ]] || errorf || return
 
-	_var "$1" || return
-
 	local _x_var=$1 _x_vals=("$2"); shift 2
 
-	local __=$__ _x_out__=() _x_in__=() _x_elems=() _x_sls=() _x_sls_x=() _x_vals_x=() _x_val _x_i _x_l _x_pos _x_len _x_size _x_depth _x_sld _x_sll _x_spec _x_fct _x_sep _x_arg _x_args=() _x_pipe=() _x_err _x_errexit _x_funcname=$CALLER_FUNCNAME_
+	local __=$__ _x_out__=() _x_in__=() _x_elems=() _x_sls=() _x_sls_x=() _x_vals_x=() _x_val _x_i _x_l _x_pos _x_len _x_size _x_depth _x_sld _x_sll _x_spec _x_fct _x_sep _x_arg _x_args=() _x_pipe=() _x_err _x_funcname=$CALLER_FUNCNAME_
 
 	[[ ! $__ || ${BASH_SOURCE[1]} != "$__functions" ]] && __=_
 
@@ -1695,10 +1652,8 @@ coproc:read_field () {
 		_x_pipe+=("$_x_fct" ${#_x_args[@]} "${_x_args[@]}")
 	done
 
-	shopt -qo errexit && _x_errexit=_
-
 	if [[ $__ == - ]] || { [[ $__ == _ ]] && "$_x_pipe":__ _ -; }; then :; else
-		_var "$_x_vals" || return
+		__v "$_x_vals" || return
 
 		eval _x_vals='("${'$_x_vals'[@]}")'
 	fi
@@ -1770,7 +1725,11 @@ coproc:read_field () {
 
 				[[ $_x_funcname ]] || unset -v CALLER_FUNCNAME_
 
-				[[ $_x_err && $_x_errexit ]] && return $_x_err
+				if [[ $_x_err ]]; then
+					_debug && debug "Pipeline function call failed: [$_x_err] $_x_fct (${_x_args[@]})"
+
+					return $_x_err
+				fi
 
 				_x_vals_x+=("${_x_out__[@]}") _x_out__=()
 
@@ -1810,9 +1769,14 @@ input () {
 }
 
 output () {
+	__v "$@" || return
+
 	local IFS=$'\n'
 
-	echo "$*"
+	while [[ $# -gt 0 ]]; do
+		eval builtin echo '"${'$1'[*]}"' || :
+		shift
+	done
 }
 
 defer () {
@@ -1850,10 +1814,6 @@ __defer_ () {
 	_trace && trace "Defer end: main"
 
 	return 0
-}
-
-_var () {
-	__v "$@"
 }
 
 # assign
@@ -2305,56 +2265,36 @@ __caller_ () {
 }
 
 __functions () {
-	local args fct name proto i out_ini out_val in_ini in_set in_val
+	local args fct name proto impl i i_argn i_argv i_vdecl i_vshift i_tdecl i_oarg i_iarg i_end
 
 	while read -r -a args; do
 		fct=${args[-1]}
 
-		[[ $fct =~ ^([^\]\[]*[^:]):\[(.*)\]$ ]] || continue
+		[[ $fct =~ ^([^\]\[]*[^:]):\[(.+)\]$ ]] || continue
 
-		name=${BASH_REMATCH[1]} proto=${BASH_REMATCH[2]}
+		name=${BASH_REMATCH[1]} proto=${BASH_REMATCH[2]} impl=()
 
-		for ((i=0; i<${#proto}; i++)); do
-			case ${proto:i:1} in
-			-)
-				if [[ $i -eq 0 ]]; then
-					out_ini=
-					out_val=\$_x_var_
-				elif [[ $i -eq 1 ]]; then
-					in_ini=
-					in_set='\$$_x_var_'
-					in_val=\$_x_val_
-				fi
-				;;
-			@)
-				if [[ $i -eq 0 ]]; then
-					out_ini='()'
-					out_val=\${_x_var_[*]}
-				elif [[ $i -eq 1 ]]; then
-					in_ini='()'
-					in_set=\''("${'\'\$_x_var_\''[@]}")'\'
-					in_val=_x_val_
-				fi
-				;;
-			*)
-				_debug && warn "Invalid function prototype: $fct"
+		if [[ $proto == *[!?@-]* ]]; then
+			_debug && warn "Invalid function prototype: $fct"
 
-				continue 2
-				;;
-			esac
-		done
+			continue 2
+		elif [[ $proto == ?*'?'* ]]; then
+			_debug && warn "Invalid usage of output status argument in function prototype: $fct"
 
-		eval '
+			continue 2
+		fi
+
+		impl+=('
 			'"$name"':__ () {
-				local i arg type proto='"$proto"'
+				local i a t p='"$proto"'
 
-				for arg; do
-					[[ $proto ]] || return 1
+				for a; do
+					[[ $p ]] || return 1
 
-					type=${proto:0:1} proto=${proto:1}
+					t=${p:0:1} p=${p:1}
 
-					for ((i=0; i<${#arg}; i++)); do
-						[[ ${arg:i:1} == [_$type] ]] && continue 2
+					for ((i=0; i<${#a}; i++)); do
+						[[ ${a:i:1} == [_$t] ]] && continue 2
 					done
 
 					return 1
@@ -2362,33 +2302,58 @@ __functions () {
 
 				return 0
 			}
+		')
 
-			'"$name"': () {
-				'"'$fct'"' "$@"
-			}
+		for i in {:,::,''}; do
+			i_argn=1 i_argv='__v "$1" || return' i_vdecl='_x_v=$1' i_vshift=shift i_tdecl= i_oarg='$_x_v' i_iarg= i_end='return $_x_e'
 
-			'"$name"':: () {
-				[[ $# -gt 0 ]] || errorf || return
+			if [[ $proto == '?'* ]]; then
+				i_oarg=
 
-				_var "$1" || return
+				[[ $i ]] && i_end='eval $_x_v=\$_x_e'
+			fi
 
-				local _x_var_=$1 _x_val_='"$in_ini"'; shift
+			case $i in
+			:)
+				i_vdecl= i_vshift= i_oarg=
+				;;
+			::)
+				if [[ ${#proto} -lt 2 ]]; then
+					i_argv='errorf || return'
+				elif [[ $proto == ?-* ]]; then
+					i_iarg='"${!_x_v}"'
+				else
+					i_iarg='$_x_v'
+				fi
+				;;
+			'')
+				i_argn=0 i_argv= i_vdecl= i_vshift=
 
-				eval _x_val_='"$in_set"'
+				if [[ $proto != '?'* ]]; then
+					i_tdecl=_x_t_ i_oarg=_x_t_ i_end='output _x_t_'
+				fi
+				;;
+			esac
 
-				'"'$fct'"' $_x_var_ "'"$in_val"'" "$@"
-			}
+			impl+=('
+				'"$name$i"' () {
+					[[ $# -ge '$i_argn' ]] || errorf || return; '"$i_argv"'
 
-			'"$name"' () {
-				local _x_var_='"$out_ini"'
+					local _x_e=0 '"$i_vdecl"' '"$i_tdecl"'; '"$i_vshift"'
 
-				'"'$fct'"' _x_var_ "$@"
+					'"'$fct'"' '"$i_oarg"' '"$i_iarg"' "$@" || _x_e=$?
 
-				local IFS=$'\''\n'\''
+					if [[ $_x_e -ne 0 ]]; then
+						[[ $_x_e -ne 2 ]] || return 2
+					fi
 
-				echo "'"$out_val"'"
-			}
-		'
+					'"$i_end"'
+				}
+			')
+		done
+
+		eval "${impl[@]}"
+
 	done < <(
 		declare -F
 	)
