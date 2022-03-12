@@ -1831,7 +1831,7 @@ __defer_ () {
 
 	local _x_a=${!1@a}
 
-	is_declared $1 || [[ $# -lt 3 ]] || _x_a=a
+	[[ $_x_a == *[aA]* ]] || [[ $# -lt 3 ]] || _x_a=a
 
 	case $_x_a in
 	*a*)
@@ -1856,7 +1856,7 @@ __defer_ () {
 
 	[[ $_x_v == $_x_v2 ]] && return
 
-	is_declared $_x_v || [[ $_x_a2 != *[aA]* ]] || _x_a=a
+	[[ $_x_a == *[aA]* ]] || [[ $_x_a2 != *[aA]* ]] || _x_a=a
 
 	case $_x_a in
 	*a*)
@@ -1929,7 +1929,15 @@ __defer_ () {
 =# () {
 	{}=# "$@" && return || [[ $? -eq 3 ]] || return 2
 
-	errorf
+	local _x_v=$1 _x_f=$2 _x_t_; shift 2
+
+	if [[ $# -gt 0 ]]; then
+		= _x_t_ "$@"
+
+		eval $_x_v'[$_x_f]'='$_x_t_'
+	else
+		unset -v $_x_v'[$_x_f]'
+	fi
 }
 
 =#: () {
@@ -2017,11 +2025,11 @@ __defer_ () {
 # constructor
 
 {} () {
-	[[ $# -ge 1 ]] || errorf || return
+	[[ $# -ge 1 && $# -le 2 ]] || errorf || return
 
-	local _x_v=${1%%:*} _x_a; _x_a=${1:${#_x_v}+1}; shift
+	__v "$1" || return
 
-	__v "$_x_v" || return
+	local _x_v=$1 _x_a=$2
 
 	[[ ${!_x_v@a} == *A* ]] || errorf "Variable not associative array" || return
 
@@ -2040,8 +2048,6 @@ __defer_ () {
 	fi
 
 	eval $_x_v='([|]=$_x_a)'
-
-	[[ $# -eq 0 ]] || {}= $_x_v "$@"
 }
 
 {}= () {
@@ -2077,7 +2083,7 @@ __defer_ () {
 {}=# () {
 	[[ $# -ge 2 ]] || errorf || return
 
-	__v "$1" "$3" && __f "$2" || return
+	__v "$1" && __f "$2" || return
 
 	local _x_v=$1 _x_a; __s $1 _x_a || return
 
@@ -2192,7 +2198,7 @@ __m () {
 
 	while [[ $# -gt 0 ]]; do
 		if __s $_x__t _x__a && [[ $_x__a == *[aA]* ]] && { _x__f=$1\|; eval _x__a='${'$_x__r'[$_x__f]}'; [[ $_x__a == *[aA]* ]]; }; then
-			{} _x__s:"$_x__a"
+			{} _x__s "$_x__a"
 
 			eval _x__ks='("${!'$_x__t'[@]}")'
 

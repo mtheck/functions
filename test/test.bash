@@ -1,5 +1,23 @@
 #!/usr/bin/env bash
 
+t_usage() {
+	cat <<END
+Execute test files (*.test) in current directory.
+
+Usage:
+  $0 [options] [<id> ...]
+
+Options:
+  -c <INTEGER>
+    Number of test iterations (1)
+  -v
+    Verbose output
+  -h
+    Display this help
+END
+	exit 2
+}
+
 function t_error { t_log Error: "$@"; exit 1; }
 
 function t_log { echo ">>> TEST $*"; } >&2
@@ -76,7 +94,13 @@ function t {
 		for t; do
 			[[ ${test[$t]} ]] || _t "$t" || t_error "Invalid test id: $t"
 
-			test[$t]=t$t
+			if [[ $t == *[!0-9]* ]]; then
+				fct=test_$t
+			else
+				fct=t$t
+			fi
+
+			test[$t]=$fct
 			tests+=($t)
 		done
 	fi
@@ -90,18 +114,18 @@ function t {
 	for t in "${tests[@]}"; do
 		fct=${test[$t]}
 
-		[[ $verbose ]] && t_log Running: $t >&2
+		[[ $T_VERBOSE ]] && t_log Running: $t >&2
 
 		err= line=
 
-		if [[ $COUNT -eq 1 ]]; then
-			( $fct ) || err=_
-		else
+		if [[ $T_COUNT -gt 1 ]]; then
 			time (
-				for ((i=0; i<COUNT; i++)); do
+				for ((i=0; i<T_COUNT; i++)); do
 					$fct
 				done &>/dev/null
 			) || err=_
+		else
+			( $fct ) || err=_
 		fi
 
 		if [[ $err ]]; then
@@ -114,12 +138,39 @@ function t {
 	done
 }
 
-verbose=
-[[ $1 == -v ]] && verbose=_ && shift
+T_COUNT=
+T_VERBOSE=
 
-COUNT=$1 && shift || COUNT=1
-
-[[ $COUNT == *[![:digit:]]* ]] && t_error "Invalid test loop count: $COUNT"
+while [[ $# -gt 0 ]]; do
+case $1 in
+-c*)
+	T_COUNT=${1#*c}
+	if [[ $T_COUNT ]]; then
+		shift
+	else
+		T_COUNT=$2
+		shift 2 || t_usage
+	fi
+	;;
+-v)
+	T_VERBOSE=_
+	shift
+	;;
+-h)
+	t_usage
+	;;
+--)
+	shift
+	break
+	;;
+-*)
+	t_error "Unknown option: $1"
+	;;
+*)
+	break
+	;;
+esac
+done
 
 test___t_cmp() {
 	local val1 val2

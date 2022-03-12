@@ -70,10 +70,21 @@ test_vcmp_order() {
 
 ## variable operators
 
-test_value_assign_illegal_name() {
-	local err
+test_value_assign_invalid_args() {
+	local err vart
 
-	= var:rt abcD 2>/dev/null || err=$?
+	err=
+	= vart abcD || err=$?
+
+	[[ ! $err ]] || t_fail
+
+	err=
+	= var:t abcD 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+
+	err=
+	= 2>/dev/null || err=$?
 
 	[[ $err -eq 2 ]] || t_fail
 }
@@ -118,18 +129,20 @@ test_value_assign_scalar() {
 	= var abcD || t_fail
 
 	[[ $var == abcD ]] || t_fail
-	[[ ! ${var1@a} ]] || t_fail
+	[[ ! ${var@a} ]] || t_fail
 }
 
-test_value_assign_scalar_extra() {
+test_value_assign_scalar_array() {
 	local var=X
 
-	[[ $var && $var != abcD ]] || t_fail
+	[[ $var ]] || t_fail
+	[[ ! ${var@a} ]] || t_fail
 
 	= var planetX TOTO coco || t_fail
 
+	[[ ${var@a} == *a* ]] || t_fail
 	[[ $var == planetX ]] || t_fail
-	[[ ! ${var1@a} ]] || t_fail
+	[[ ${var[2]} == coco ]] || t_fail
 }
 
 test_value_assign_array() {
@@ -160,10 +173,15 @@ test_value_assign_assoc() {
 	[[ ! ${var[k2]} ]] || t_fail
 }
 
-test_ref_assign_illegal_name() {
-	local err var=Apex
+test_ref_assign_invalid_args() {
+	local err var=Apex var2=coco
 
 	declare -p var &>/dev/null || t_fail
+
+	err=
+	=: var var2 || err=$?
+
+	[[ ! $err ]] || t_fail
 
 	err=
 	=: var:rt var 2>/dev/null || err=$?
@@ -172,6 +190,11 @@ test_ref_assign_illegal_name() {
 
 	err=
 	=: var 'var r' 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+
+	err=
+	=: var 2>/dev/null || err=$?
 
 	[[ $err -eq 2 ]] || t_fail
 }
@@ -281,9 +304,9 @@ test_ref_assign_scalar_array() {
 
 	=: var1 var2 || t_fail
 
-	[[ $var1 == abc ]] || t_fail
+	[[ ${var1@a} == *a* ]] || t_fail
 	[[ ${var2[2]} == ghi ]] || t_fail
-	[[ ! ${var1@a} ]] || t_fail
+	[[ ${var1[1]} == def ]] || t_fail
 }
 
 test_ref_assign_scalar_assoc() {
@@ -295,9 +318,10 @@ test_ref_assign_scalar_assoc() {
 
 	=: var1 var2 || t_fail
 
-	[[ $var1 == Will ]] || t_fail
+	[[ ${var1@a} == *a* ]] || t_fail
+	[[ ${#var1[@]} -eq 6 ]] || t_fail
+	[[ "${var1[*]}" == *0"${IFS:0:1}"Will* ]] || t_fail
 	[[ ${var2[tata]} == 123 ]] || t_fail
-	[[ ! ${var1@a} ]] || t_fail
 }
 
 test_ref_assign_array_scalar() {
@@ -447,4 +471,66 @@ test_ref_assign_member_array() {
 	=: var arr 3 0 1  || t_fail
 
 	[[ -z $var ]] || t_fail
+}
+
+test_member_value_assign_invalid_args() {
+	local err; local -A var=()
+
+	err=
+	=# var AbcDef XX || err=$?
+
+	[[ ! $err ]] || t_fail
+
+	err=
+	=# va@r AbcDef XX 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+
+	err=
+	=# var 'Abc|Def' XX 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+
+	err=
+	=# var 2>/dev/null || err=$?
+
+	[[ $err -eq 2 ]] || t_fail
+}
+
+test_member_value_assign_scalar() {
+	local var=Titi var2=qwerty
+
+	[[ ! ${var@a} ]] || t_fail
+
+	=# var 0 XoX || t_fail
+
+	[[ $var == XoX ]] || t_fail
+	[[ ${var@a} == *a* ]] || t_fail
+
+	=# var KEY OxO || t_fail
+
+	[[ $var == OxO ]] || t_fail
+
+	=# var 3 three || t_fail
+
+	[[ ${var[0]} == OxO ]] || t_fail
+	[[ ${var[3]} == three ]] || t_fail
+
+	[[ ! ${var2@a} ]] || t_fail
+	[[ $var2 ]] || t_fail
+
+	=# var2 0 || t_fail
+
+	[[ ! ${var2@a} ]] || t_fail
+	[[ ! $var2 ]] || t_fail
+
+	=# var2 4 || t_fail
+
+	[[ ! ${var2@a} ]] || t_fail
+	[[ ! $var2 ]] || t_fail
+}
+
+_test_member_value_assign_array() {
+	local arr=(abc DEF GhI jKl)
+
 }
